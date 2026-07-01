@@ -93,19 +93,48 @@ export default async function DeadlinesPage() {
             </thead>
 
             <tbody>
+              {deadlines?.length === 0 && (
+  <tr>
+    <td colSpan={5} className="p-10 text-center">
+      <p className="text-lg font-semibold text-white">
+        Aucune échéance pour le moment
+      </p>
+
+      <p className="mt-2 text-slate-400">
+        Ajoutez votre première échéance pour commencer à suivre vos obligations importantes.
+      </p>
+
+      <a
+        href="/deadlines/new"
+        className="mt-6 inline-flex rounded-xl bg-blue-500 px-5 py-3 font-semibold text-white hover:bg-blue-400"
+      >
+        Créer ma première échéance
+      </a>
+    </td>
+  </tr>
+)}
               {deadlines?.map((deadline) => (
                 <tr key={deadline.id} className="border-t border-white/10">
-                  <td className="p-4">{deadline.title}</td>
-                  <td className="p-4">{deadline.category}</td>
-                  <td className="p-4">
+                <td className="p-4">{deadline.title}</td>
+                <td className="p-4">{deadline.category}</td>
+                <td className="p-4">
                 {new Date(deadline.due_date).toLocaleDateString("fr-FR")}
                 </td>
                   <td className={`p-4 font-medium ${getDeadlineStatusColor(deadline.due_date)}`}>
                 {getDeadlineStatus(deadline.due_date)}
                 </td>
                 <td className="p-4">
-                    <DeleteDeadlineButton id={deadline.id} />
-                </td>
+  <div className="flex gap-2">
+    <a
+      href={`/deadlines/edit/${deadline.id}`}
+      className="rounded-lg bg-blue-500 px-3 py-2 text-sm font-medium text-white hover:bg-blue-400"
+    >
+      Modifier
+    </a>
+
+    <DeleteDeadlineButton id={deadline.id} />
+  </div>
+</td>
                 </tr>
               ))}
             </tbody>

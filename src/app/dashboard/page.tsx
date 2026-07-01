@@ -38,6 +38,22 @@ export default async function DashboardPage() {
 
         <p className="mt-2 text-slate-400">Bienvenue sur DuePilot.</p>
 
+        <div className="mt-6 flex gap-4">
+  <a
+    href="/deadlines"
+    className="inline-flex rounded-xl bg-blue-500 px-5 py-3 font-semibold text-white hover:bg-blue-400"
+  >
+    Voir mes échéances
+  </a>
+
+  <a
+    href="/deadlines/new"
+    className="inline-flex rounded-xl bg-slate-800 px-5 py-3 font-semibold text-white hover:bg-slate-700"
+  >
+    Nouvelle échéance
+  </a>
+</div>
+
         <div className="mt-10 grid gap-6 md:grid-cols-3">
           <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6">
             <h2 className="text-lg font-semibold text-red-300">Échéances en retard</h2>

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-16 text-white">
@@ -33,12 +35,26 @@ export default function LoginPage() {
             />
           </div>
 
+          <div>
+            <label className="mb-2 block text-sm font-medium">
+              Mot de passe
+            </label>
+
+           <input
+            type="password"
+            placeholder="Votre mot de passe"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-xl border border-white/10 bg-slate-900 p-4 text-white outline-none focus:border-blue-500"
+          />
+        </div>
+
           <button
-            type="submit"
-            className="w-full rounded-xl bg-blue-500 px-6 py-3 font-semibold hover:bg-blue-400"
-          >
-            Recevoir un lien de connexion
-          </button>
+  type="submit"
+  className="w-full rounded-xl bg-blue-500 px-6 py-3 font-semibold hover:bg-blue-400"
+>
+  Se connecter
+</button>
         </form>
       </div>
     </main>
