@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
+import DeleteDeadlineButton from "@/components/DeleteDeadlineButton";
+
 function getDeadlineStatus(dueDate: string) {
   const today = new Date();
   const deadlineDate = new Date(dueDate);
@@ -102,9 +104,7 @@ export default async function DeadlinesPage() {
                 {getDeadlineStatus(deadline.due_date)}
                 </td>
                 <td className="p-4">
-                    <button className="rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white hover:bg-red-400">
-                    Supprimer
-                </button>
+                    <DeleteDeadlineButton id={deadline.id} />
                 </td>
                 </tr>
               ))}
