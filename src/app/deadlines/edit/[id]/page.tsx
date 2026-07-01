@@ -1,6 +1,5 @@
+import EditDeadlineForm from "@/components/EditDeadlineForm";
 import { supabase } from "@/lib/supabase";
-
-
 
 type EditDeadlinePageProps = {
   params: Promise<{
@@ -38,19 +37,7 @@ export default async function EditDeadlinePage({
             Modification de : {deadline?.title}
         </p>
 
-        <form className="mt-10 space-y-6">
-  <div>
-    <label className="mb-2 block text-sm font-medium">
-      Nom de l'échéance
-    </label>
-
-    <input
-      type="text"
-      defaultValue={deadline?.title}
-      className="w-full rounded-xl border border-white/10 bg-slate-900 p-4 text-white outline-none focus:border-blue-500"
-    />
-  </div>
-</form>
+        <EditDeadlineForm deadline={deadline} />
 
       </div>
     </main>
