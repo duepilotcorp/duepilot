@@ -2,6 +2,8 @@ import { supabase } from "@/lib/supabase";
 
 import DeleteDeadlineButton from "@/components/DeleteDeadlineButton";
 
+export const dynamic = "force-dynamic";
+
 function getDeadlineStatus(dueDate: string) {
   const today = new Date();
   const deadlineDate = new Date(dueDate);
@@ -94,7 +96,7 @@ export default async function DeadlinesPage() {
 
             <tbody>
               {deadlines?.length === 0 && (
-  <tr>
+    <tr>
     <td colSpan={5} className="p-10 text-center">
       <p className="text-lg font-semibold text-white">
         Aucune échéance pour le moment
