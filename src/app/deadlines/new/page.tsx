@@ -41,11 +41,12 @@ export default function NewDeadlinePage() {
     }
 
     const { error } = await supabase.from("deadlines").insert({
-      title: title.trim(),
-      category: category.trim(),
-      due_date: dueDate,
-      user_id: user.id,
-    });
+  title: title.trim(),
+  category: category.trim(),
+  due_date: dueDate,
+  user_id: user.id,
+  notification_days: [30, 7, 1],
+});
 
     if (error) {
       setErrorMessage(`Erreur Supabase : ${error.message}`);
