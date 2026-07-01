@@ -1,35 +1,62 @@
 "use client";
 
-import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 type DeleteDeadlineButtonProps = {
   id: number;
 };
 
-export default function DeleteDeadlineButton({
-  id,
-}: DeleteDeadlineButtonProps) {
+export default function DeleteDeadlineButton({ id }: DeleteDeadlineButtonProps) {
   const router = useRouter();
+  const supabase = createClient();
+
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async () => {
-  const confirmed = confirm("Voulez-vous vraiment supprimer cette échéance ?");
+    if (isDeleting) return;
 
-  if (!confirmed) {
-    return;
-  }
+    const confirmed = confirm("Voulez-vous vraiment supprimer cette échéance ?");
 
-  await supabase.from("deadlines").delete().eq("id", id);
+    if (!confirmed) return;
 
-  router.refresh();
-};
+    setIsDeleting(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.replace("/login");
+      router.refresh();
+      return;
+    }
+
+    const { error } = await supabase
+      .from("deadlines")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      alert(`Erreur Supabase : ${error.message}`);
+      setIsDeleting(false);
+      return;
+    }
+
+    router.refresh();
+    setIsDeleting(false);
+  };
 
   return (
     <button
-  onClick={handleDelete}
-  className="rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white hover:bg-red-400"
->
-      Supprimer
+      type="button"
+      onClick={handleDelete}
+      disabled={isDeleting}
+      className="rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-red-500/50"
+    >
+      {isDeleting ? "Suppression..." : "Supprimer"}
     </button>
   );
 }
