@@ -26,7 +26,27 @@ type EnrichedDeadline = Deadline & {
   priorityLabel: string;
 };
 
+type SearchParams = Record<string, string | string[] | undefined>;
+
+type StatusFilter = "all" | "late" | "today" | "next7" | "next30" | "safe";
+type SortOption = "due_asc" | "due_desc" | "title_asc" | "created_desc";
+
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "Tous les statuts" },
+  { value: "late", label: "En retard" },
+  { value: "today", label: "Aujourd’hui" },
+  { value: "next7", label: "Sous 7 jours" },
+  { value: "next30", label: "Sous 30 jours" },
+  { value: "safe", label: "Sous contrôle" },
+];
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: "due_asc", label: "Date la plus proche" },
+  { value: "due_desc", label: "Date la plus lointaine" },
+  { value: "title_asc", label: "Nom A-Z" },
+  { value: "created_desc", label: "Ajout récent" },
+];
 
 function getTodayAtMidnight() {
   const today = new Date();
@@ -179,8 +199,108 @@ function getDeadlineInsight({
   };
 }
 
-export default async function DeadlinesPage() {
+function getSearchParam(params: SearchParams, key: string) {
+  const value = params[key];
+
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return value ?? "";
+}
+
+function getStatusFilter(value: string): StatusFilter {
+  return STATUS_FILTERS.some((filter) => filter.value === value)
+    ? (value as StatusFilter)
+    : "all";
+}
+
+function getSortOption(value: string): SortOption {
+  return SORT_OPTIONS.some((option) => option.value === value)
+    ? (value as SortOption)
+    : "due_asc";
+}
+
+function matchesStatusFilter(deadline: EnrichedDeadline, status: StatusFilter) {
+  if (status === "late") return deadline.daysUntilDeadline < 0;
+  if (status === "today") return deadline.daysUntilDeadline === 0;
+  if (status === "next7") {
+    return deadline.daysUntilDeadline >= 0 && deadline.daysUntilDeadline <= 7;
+  }
+  if (status === "next30") {
+    return deadline.daysUntilDeadline >= 0 && deadline.daysUntilDeadline <= 30;
+  }
+  if (status === "safe") return deadline.daysUntilDeadline > 30;
+
+  return true;
+}
+
+function sortDeadlines(deadlines: EnrichedDeadline[], sort: SortOption) {
+  return [...deadlines].sort((firstDeadline, secondDeadline) => {
+    if (sort === "due_desc") {
+      return (
+        parseLocalDate(secondDeadline.due_date).getTime() -
+        parseLocalDate(firstDeadline.due_date).getTime()
+      );
+    }
+
+    if (sort === "title_asc") {
+      return firstDeadline.title.localeCompare(secondDeadline.title, "fr", {
+        sensitivity: "base",
+      });
+    }
+
+    if (sort === "created_desc") {
+      return (
+        new Date(secondDeadline.created_at).getTime() -
+        new Date(firstDeadline.created_at).getTime()
+      );
+    }
+
+    return (
+      parseLocalDate(firstDeadline.due_date).getTime() -
+      parseLocalDate(secondDeadline.due_date).getTime()
+    );
+  });
+}
+
+function buildFilterSummary({
+  searchQuery,
+  statusFilter,
+  categoryFilter,
+}: {
+  searchQuery: string;
+  statusFilter: StatusFilter;
+  categoryFilter: string;
+}) {
+  const activeFilters: string[] = [];
+
+  if (searchQuery) activeFilters.push(`Recherche : “${searchQuery}”`);
+  if (statusFilter !== "all") {
+    activeFilters.push(
+      STATUS_FILTERS.find((filter) => filter.value === statusFilter)?.label ??
+        "Statut filtré"
+    );
+  }
+  if (categoryFilter !== "all") activeFilters.push(categoryFilter);
+
+  return activeFilters;
+}
+
+export default async function DeadlinesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<SearchParams>;
+}) {
   const supabase = await createClient();
+  const params = searchParams ? await searchParams : {};
+
+  const rawSearchQuery = getSearchParam(params, "q");
+  const searchQuery = rawSearchQuery.trim().slice(0, 80);
+  const normalizedSearchQuery = searchQuery.toLocaleLowerCase("fr-FR");
+  const statusFilter = getStatusFilter(getSearchParam(params, "status"));
+  const categoryFilter = getSearchParam(params, "category") || "all";
+  const sortOption = getSortOption(getSearchParam(params, "sort"));
 
   const {
     data: { user },
@@ -250,6 +370,43 @@ export default async function DeadlinesPage() {
     (deadline) => deadline.daysUntilDeadline > 30
   ).length;
 
+  const categories = Array.from(
+    new Set(enrichedDeadlines.map((deadline) => deadline.categoryLabel))
+  ).sort((firstCategory, secondCategory) =>
+    firstCategory.localeCompare(secondCategory, "fr", { sensitivity: "base" })
+  );
+
+  const safeCategoryFilter = categories.includes(categoryFilter)
+    ? categoryFilter
+    : "all";
+
+  const filteredDeadlines = sortDeadlines(
+    enrichedDeadlines.filter((deadline) => {
+      const searchableContent = [
+        deadline.title,
+        deadline.categoryLabel,
+        deadline.formattedDate,
+        deadline.readableStatus,
+        deadline.priorityLabel,
+      ]
+        .join(" ")
+        .toLocaleLowerCase("fr-FR");
+
+      const matchesSearch = normalizedSearchQuery
+        ? searchableContent.includes(normalizedSearchQuery)
+        : true;
+      const matchesCategory =
+        safeCategoryFilter === "all" || deadline.categoryLabel === safeCategoryFilter;
+
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesStatusFilter(deadline, statusFilter)
+      );
+    }),
+    sortOption
+  );
+
   const nextDeadline = enrichedDeadlines[0];
   const urgentDeadlines = enrichedDeadlines.filter(
     (deadline) => deadline.daysUntilDeadline <= 30
@@ -261,9 +418,14 @@ export default async function DeadlinesPage() {
     next30Count,
   });
 
-  const categoryCount = new Set(
-    enrichedDeadlines.map((deadline) => deadline.categoryLabel)
-  ).size;
+  const categoryCount = categories.length;
+  const filteredCount = filteredDeadlines.length;
+  const activeFilters = buildFilterSummary({
+    searchQuery,
+    statusFilter,
+    categoryFilter: safeCategoryFilter,
+  });
+  const hasActiveFilters = activeFilters.length > 0 || sortOption !== "due_asc";
 
   const statCards = [
     {
@@ -408,8 +570,8 @@ export default async function DeadlinesPage() {
                   Liste des échéances
                 </h2>
                 <p className="mt-1 text-sm text-slate-400">
-                  Triées automatiquement par date d’échéance, de la plus proche à
-                  la plus lointaine.
+                  Recherchez, filtrez et triez vos obligations sans perdre la
+                  vision globale de votre registre.
                 </p>
               </div>
 
@@ -448,137 +610,271 @@ export default async function DeadlinesPage() {
             </div>
           ) : (
             <>
-              <div className="hidden overflow-x-auto lg:block">
-                <table className="w-full min-w-[900px]">
-                  <thead>
-                    <tr className="border-b border-white/10 text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      <th className="px-6 py-4">Échéance</th>
-                      <th className="px-6 py-4">Catégorie</th>
-                      <th className="px-6 py-4">Date</th>
-                      <th className="px-6 py-4">Statut</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
+              <form
+                action="/deadlines"
+                className="border-b border-white/10 bg-slate-950/20 p-5 sm:p-6"
+              >
+                <div className="grid gap-4 xl:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_auto] xl:items-end">
+                  <label className="block">
+                    <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Recherche
+                    </span>
+                    <input
+                      type="search"
+                      name="q"
+                      defaultValue={searchQuery}
+                      placeholder="Nom, catégorie, statut…"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-blue-400/50 focus:bg-white/[0.07]"
+                    />
+                  </label>
 
-                  <tbody className="divide-y divide-white/10">
-                    {enrichedDeadlines.map((deadline) => (
-                      <tr
-                        key={deadline.id}
-                        className="group transition hover:bg-white/[0.03]"
+                  <label className="block">
+                    <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Statut
+                    </span>
+                    <select
+                      name="status"
+                      defaultValue={statusFilter}
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/50"
+                    >
+                      {STATUS_FILTERS.map((filter) => (
+                        <option key={filter.value} value={filter.value}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Catégorie
+                    </span>
+                    <select
+                      name="category"
+                      defaultValue={safeCategoryFilter}
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/50"
+                    >
+                      <option value="all">Toutes les catégories</option>
+                      {categories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Tri
+                    </span>
+                    <select
+                      name="sort"
+                      defaultValue={sortOption}
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/50"
+                    >
+                      {SORT_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      className="flex-1 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 xl:flex-none"
+                    >
+                      Appliquer
+                    </button>
+                    {hasActiveFilters ? (
+                      <Link
+                        href="/deadlines"
+                        className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
                       >
-                        <td className="px-6 py-5">
-                          <div className="flex items-start gap-4">
-                            <span
-                              className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full ${deadline.indicatorClassName}`}
-                            />
-                            <div className="min-w-0">
-                              <p className="truncate font-semibold text-white transition group-hover:text-blue-100">
-                                {deadline.title}
+                        Reset
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-col gap-3 text-sm text-slate-400 lg:flex-row lg:items-center lg:justify-between">
+                  <p>
+                    {filteredCount} résultat{filteredCount > 1 ? "s" : ""} sur {total}
+                    {" "}
+                    échéance{total > 1 ? "s" : ""}
+                  </p>
+
+                  {activeFilters.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {activeFilters.map((filter) => (
+                        <span
+                          key={filter}
+                          className="rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-xs font-medium text-blue-100"
+                        >
+                          {filter}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </form>
+
+              {filteredCount === 0 ? (
+                <div className="p-8 text-center sm:p-12">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-2xl">
+                    ⌕
+                  </div>
+                  <h3 className="mt-6 text-2xl font-bold text-white">
+                    Aucun résultat trouvé
+                  </h3>
+                  <p className="mx-auto mt-3 max-w-xl text-slate-400">
+                    Aucun élément ne correspond aux filtres actuels. Modifiez la
+                    recherche, changez le statut ou réinitialisez les filtres pour
+                    retrouver l’ensemble du registre.
+                  </p>
+                  <Link
+                    href="/deadlines"
+                    className="mt-7 inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                  >
+                    Réinitialiser les filtres
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  <div className="hidden overflow-x-auto lg:block">
+                    <table className="w-full min-w-[900px]">
+                      <thead>
+                        <tr className="border-b border-white/10 text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          <th className="px-6 py-4">Échéance</th>
+                          <th className="px-6 py-4">Catégorie</th>
+                          <th className="px-6 py-4">Date</th>
+                          <th className="px-6 py-4">Statut</th>
+                          <th className="px-6 py-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y divide-white/10">
+                        {filteredDeadlines.map((deadline) => (
+                          <tr
+                            key={deadline.id}
+                            className="group transition hover:bg-white/[0.03]"
+                          >
+                            <td className="px-6 py-5">
+                              <div className="flex items-start gap-4">
+                                <span
+                                  className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full ${deadline.indicatorClassName}`}
+                                />
+                                <div className="min-w-0">
+                                  <p className="truncate font-semibold text-white transition group-hover:text-blue-100">
+                                    {deadline.title}
+                                  </p>
+                                  <p className="mt-1 text-sm text-slate-500">
+                                    {deadline.priorityLabel}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="px-6 py-5">
+                              <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm font-medium text-slate-200">
+                                {deadline.categoryLabel}
+                              </span>
+                            </td>
+
+                            <td className="px-6 py-5">
+                              <p className="font-medium text-slate-200">
+                                {deadline.formattedDate}
                               </p>
                               <p className="mt-1 text-sm text-slate-500">
-                                {deadline.priorityLabel}
+                                {deadline.compactStatus}
+                              </p>
+                            </td>
+
+                            <td className="px-6 py-5">
+                              <span
+                                className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${deadline.statusClassName}`}
+                              >
+                                {deadline.readableStatus}
+                              </span>
+                            </td>
+
+                            <td className="px-6 py-5">
+                              <div className="flex justify-end gap-2">
+                                <Link
+                                  href={`/deadlines/edit/${deadline.id}`}
+                                  className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                                >
+                                  Modifier
+                                </Link>
+
+                                <DeleteDeadlineButton id={deadline.id} />
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="space-y-3 p-4 lg:hidden">
+                    {filteredDeadlines.map((deadline) => (
+                      <article
+                        key={deadline.id}
+                        className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 shadow-xl shadow-slate-950/20"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`h-2.5 w-2.5 shrink-0 rounded-full ${deadline.indicatorClassName}`}
+                              />
+                              <p className="truncate font-semibold text-white">
+                                {deadline.title}
                               </p>
                             </div>
+                            <p className="mt-2 text-sm text-slate-400">
+                              {deadline.categoryLabel}
+                            </p>
                           </div>
-                        </td>
 
-                        <td className="px-6 py-5">
-                          <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm font-medium text-slate-200">
-                            {deadline.categoryLabel}
-                          </span>
-                        </td>
-
-                        <td className="px-6 py-5">
-                          <p className="font-medium text-slate-200">
-                            {deadline.formattedDate}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-500">
-                            {deadline.compactStatus}
-                          </p>
-                        </td>
-
-                        <td className="px-6 py-5">
                           <span
-                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${deadline.statusClassName}`}
+                            className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${deadline.statusClassName}`}
                           >
-                            {deadline.readableStatus}
+                            {deadline.compactStatus}
                           </span>
-                        </td>
-
-                        <td className="px-6 py-5">
-                          <div className="flex justify-end gap-2">
-                            <Link
-                              href={`/deadlines/edit/${deadline.id}`}
-                              className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-                            >
-                              Modifier
-                            </Link>
-
-                            <DeleteDeadlineButton id={deadline.id} />
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="space-y-3 p-4 lg:hidden">
-                {enrichedDeadlines.map((deadline) => (
-                  <article
-                    key={deadline.id}
-                    className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 shadow-xl shadow-slate-950/20"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`h-2.5 w-2.5 shrink-0 rounded-full ${deadline.indicatorClassName}`}
-                          />
-                          <p className="truncate font-semibold text-white">
-                            {deadline.title}
-                          </p>
                         </div>
-                        <p className="mt-2 text-sm text-slate-400">
-                          {deadline.categoryLabel}
-                        </p>
-                      </div>
 
-                      <span
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${deadline.statusClassName}`}
-                      >
-                        {deadline.compactStatus}
-                      </span>
-                    </div>
+                        <div className="mt-4 grid gap-3 rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-sm sm:grid-cols-2">
+                          <div>
+                            <p className="text-slate-500">Date</p>
+                            <p className="mt-1 font-medium text-slate-100">
+                              {deadline.formattedDate}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Statut</p>
+                            <p className="mt-1 font-medium text-slate-100">
+                              {deadline.readableStatus}
+                            </p>
+                          </div>
+                        </div>
 
-                    <div className="mt-4 grid gap-3 rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-sm sm:grid-cols-2">
-                      <div>
-                        <p className="text-slate-500">Date</p>
-                        <p className="mt-1 font-medium text-slate-100">
-                          {deadline.formattedDate}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-slate-500">Statut</p>
-                        <p className="mt-1 font-medium text-slate-100">
-                          {deadline.readableStatus}
-                        </p>
-                      </div>
-                    </div>
+                        <div className="mt-4 flex gap-2">
+                          <Link
+                            href={`/deadlines/edit/${deadline.id}`}
+                            className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                          >
+                            Modifier
+                          </Link>
 
-                    <div className="mt-4 flex gap-2">
-                      <Link
-                        href={`/deadlines/edit/${deadline.id}`}
-                        className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-                      >
-                        Modifier
-                      </Link>
-
-                      <DeleteDeadlineButton id={deadline.id} />
-                    </div>
-                  </article>
-                ))}
-              </div>
+                          <DeleteDeadlineButton id={deadline.id} />
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </>
+              )}
             </>
           )}
         </section>
