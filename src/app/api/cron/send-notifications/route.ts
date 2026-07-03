@@ -13,9 +13,21 @@ function isAuthorizedCronRequest(request: Request) {
   return request.headers.get("authorization") === `Bearer ${cronSecret}`;
 }
 
+function parseLocalDate(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    const fallbackDate = new Date(date);
+    fallbackDate.setHours(0, 0, 0, 0);
+    return fallbackDate;
+  }
+
+  return new Date(year, month - 1, day);
+}
+
 function getDaysUntilDueDate(dueDate: string) {
   const today = new Date();
-  const deadlineDate = new Date(dueDate);
+  const deadlineDate = parseLocalDate(dueDate);
 
   today.setHours(0, 0, 0, 0);
   deadlineDate.setHours(0, 0, 0, 0);
@@ -32,6 +44,30 @@ function escapeHtml(value: string | null | undefined) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function getNotificationLabel(daysUntilDueDate: number) {
+  if (daysUntilDueDate === 0) {
+    return "aujourd’hui";
+  }
+
+  if (daysUntilDueDate === 1) {
+    return "demain";
+  }
+
+  return `dans ${daysUntilDueDate} jours`;
+}
+
+function getNotificationSubjectPrefix(daysUntilDueDate: number) {
+  if (daysUntilDueDate === 0) {
+    return "Échéance aujourd’hui";
+  }
+
+  if (daysUntilDueDate === 1) {
+    return "Échéance demain";
+  }
+
+  return `Échéance J-${daysUntilDueDate}`;
 }
 
 export async function GET(request: Request) {
@@ -90,18 +126,21 @@ export async function GET(request: Request) {
     const safeTitle = escapeHtml(deadline.title);
     const safeCategory = escapeHtml(deadline.category);
     const safeDueDate = escapeHtml(deadline.due_date);
+    const safeNotificationLabel = escapeHtml(
+      getNotificationLabel(daysUntilDueDate)
+    );
 
     const { error: emailError } = await resend.emails.send({
       from: "DuePilot <onboarding@resend.dev>",
       // Resend est encore en mode test : remettre `email` dès que le domaine est validé.
       to: "duepilotcorp@gmail.com",
-      subject: `Rappel échéance : ${deadline.title}`,
+      subject: `${getNotificationSubjectPrefix(daysUntilDueDate)} : ${deadline.title}`,
       html: `
         <h2>Rappel d'échéance</h2>
 
         <p>
           Votre échéance <strong>${safeTitle}</strong>
-          arrive dans <strong>${daysUntilDueDate} jour(s)</strong>.
+          arrive <strong>${safeNotificationLabel}</strong>.
         </p>
 
         <p>
