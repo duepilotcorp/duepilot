@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import DeadlineOnboardingEmptyState from "@/components/DeadlineOnboardingEmptyState";
 import DeleteDeadlineButton from "@/components/DeleteDeadlineButton";
 import LogoutButton from "@/components/LogoutButton";
 import { createClient } from "@/lib/supabase/server";
@@ -590,24 +591,7 @@ export default async function DeadlinesPage({
           </div>
 
           {total === 0 ? (
-            <div className="p-8 text-center sm:p-12">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-400/10 text-2xl">
-                ✦
-              </div>
-              <h3 className="mt-6 text-2xl font-bold text-white">
-                Aucune échéance enregistrée
-              </h3>
-              <p className="mx-auto mt-3 max-w-xl text-slate-400">
-                Ajoutez une première assurance, certification, habilitation ou
-                vérification périodique pour commencer à sécuriser votre suivi.
-              </p>
-              <Link
-                href="/deadlines/new"
-                className="mt-7 inline-flex justify-center rounded-xl bg-blue-500 px-5 py-3 font-semibold text-white transition hover:bg-blue-400"
-              >
-                Créer ma première échéance
-              </Link>
-            </div>
+            <DeadlineOnboardingEmptyState embedded variant="deadlines" />
           ) : (
             <>
               <form

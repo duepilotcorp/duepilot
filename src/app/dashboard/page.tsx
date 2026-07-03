@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import DeadlineOnboardingEmptyState from "@/components/DeadlineOnboardingEmptyState";
 import LogoutButton from "@/components/LogoutButton";
 import { createClient } from "@/lib/supabase/server";
 
@@ -391,25 +392,7 @@ export default async function DashboardPage() {
         </section>
 
         {total === 0 ? (
-          <section className="mt-6 rounded-[2rem] border border-dashed border-white/15 bg-white/[0.03] p-8 text-center sm:p-12">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-400/10 text-2xl">
-              ✦
-            </div>
-            <h2 className="mt-6 text-2xl font-bold text-white">
-              Ajoutez votre première échéance
-            </h2>
-            <p className="mx-auto mt-3 max-w-xl text-slate-400">
-              Commencez avec une assurance, une certification, un contrat ou un
-              contrôle réglementaire. DuePilot construira ensuite votre cockpit
-              de suivi automatiquement.
-            </p>
-            <Link
-              href="/deadlines/new"
-              className="mt-7 inline-flex justify-center rounded-xl bg-blue-500 px-5 py-3 font-semibold text-white transition hover:bg-blue-400"
-            >
-              Créer ma première échéance
-            </Link>
-          </section>
+          <DeadlineOnboardingEmptyState variant="dashboard" />
         ) : (
           <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.85fr]">
             <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
