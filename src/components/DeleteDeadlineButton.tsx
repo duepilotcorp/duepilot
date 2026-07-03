@@ -40,7 +40,7 @@ export default function DeleteDeadlineButton({ id }: DeleteDeadlineButtonProps) 
       .eq("user_id", user.id);
 
     if (error) {
-      alert(`Erreur Supabase : ${error.message}`);
+      alert("Impossible de supprimer cette échéance pour le moment.");
       setIsDeleting(false);
       return;
     }
@@ -54,7 +54,7 @@ export default function DeleteDeadlineButton({ id }: DeleteDeadlineButtonProps) 
       type="button"
       onClick={handleDelete}
       disabled={isDeleting}
-      className="rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-red-500/50"
+      className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-100 transition hover:border-red-400/40 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {isDeleting ? "Suppression..." : "Supprimer"}
     </button>

@@ -9,49 +9,174 @@ export const dynamic = "force-dynamic";
 type Deadline = {
   id: number;
   title: string;
-  category: string;
+  category: string | null;
   due_date: string;
   created_at: string;
   user_id: string | null;
 };
 
-function getDeadlineStatus(dueDate: string) {
+type EnrichedDeadline = Deadline & {
+  categoryLabel: string;
+  daysUntilDeadline: number;
+  formattedDate: string;
+  readableStatus: string;
+  compactStatus: string;
+  statusClassName: string;
+  indicatorClassName: string;
+  priorityLabel: string;
+};
+
+const DAY_IN_MS = 1000 * 60 * 60 * 24;
+
+function getTodayAtMidnight() {
   const today = new Date();
-  const deadlineDate = new Date(dueDate);
-
   today.setHours(0, 0, 0, 0);
-  deadlineDate.setHours(0, 0, 0, 0);
-
-  const differenceInTime = deadlineDate.getTime() - today.getTime();
-  const differenceInDays = Math.ceil(differenceInTime / (1000 * 60 * 60 * 24));
-
-  if (differenceInDays < 0) {
-    return `En retard de ${Math.abs(differenceInDays)} jour(s)`;
-  }
-
-  if (differenceInDays === 0) {
-    return "Aujourd'hui";
-  }
-
-  return `${differenceInDays} jour(s) restant(s)`;
+  return today;
 }
 
-function getDeadlineStatusColor(dueDate: string) {
-  const today = new Date();
-  const deadlineDate = new Date(dueDate);
+function parseLocalDate(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
 
-  today.setHours(0, 0, 0, 0);
-  deadlineDate.setHours(0, 0, 0, 0);
+  if (!year || !month || !day) {
+    const fallbackDate = new Date(date);
+    fallbackDate.setHours(0, 0, 0, 0);
+    return fallbackDate;
+  }
 
-  const differenceInDays = Math.ceil(
-    (deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  );
+  return new Date(year, month - 1, day);
+}
 
-  if (differenceInDays < 0) return "text-red-400";
-  if (differenceInDays <= 7) return "text-orange-400";
-  if (differenceInDays <= 30) return "text-yellow-400";
+function getDaysUntilDeadline(dueDate: string, today: Date) {
+  const deadlineDate = parseLocalDate(dueDate);
+  return Math.ceil((deadlineDate.getTime() - today.getTime()) / DAY_IN_MS);
+}
 
-  return "text-green-400";
+function formatDeadlineDate(dueDate: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(parseLocalDate(dueDate));
+}
+
+function getReadableStatus(daysUntilDeadline: number) {
+  if (daysUntilDeadline < 0) {
+    const daysLate = Math.abs(daysUntilDeadline);
+    return `En retard de ${daysLate} jour${daysLate > 1 ? "s" : ""}`;
+  }
+
+  if (daysUntilDeadline === 0) {
+    return "À traiter aujourd’hui";
+  }
+
+  if (daysUntilDeadline === 1) {
+    return "À traiter demain";
+  }
+
+  return `Dans ${daysUntilDeadline} jours`;
+}
+
+function getCompactStatus(daysUntilDeadline: number) {
+  if (daysUntilDeadline < 0) {
+    return `J+${Math.abs(daysUntilDeadline)}`;
+  }
+
+  if (daysUntilDeadline === 0) {
+    return "Jour J";
+  }
+
+  return `J-${daysUntilDeadline}`;
+}
+
+function getStatusClassName(daysUntilDeadline: number) {
+  if (daysUntilDeadline < 0) {
+    return "border-red-500/25 bg-red-500/10 text-red-100";
+  }
+
+  if (daysUntilDeadline <= 7) {
+    return "border-orange-500/25 bg-orange-500/10 text-orange-100";
+  }
+
+  if (daysUntilDeadline <= 30) {
+    return "border-yellow-500/25 bg-yellow-500/10 text-yellow-100";
+  }
+
+  return "border-emerald-500/25 bg-emerald-500/10 text-emerald-100";
+}
+
+function getIndicatorClassName(daysUntilDeadline: number) {
+  if (daysUntilDeadline < 0) return "bg-red-400";
+  if (daysUntilDeadline <= 7) return "bg-orange-400";
+  if (daysUntilDeadline <= 30) return "bg-yellow-300";
+  return "bg-emerald-400";
+}
+
+function getPriorityLabel(daysUntilDeadline: number) {
+  if (daysUntilDeadline < 0) return "Action immédiate";
+  if (daysUntilDeadline === 0) return "À faire aujourd’hui";
+  if (daysUntilDeadline <= 7) return "Très proche";
+  if (daysUntilDeadline <= 30) return "À anticiper";
+  return "Sous contrôle";
+}
+
+function getDeadlineInsight({
+  total,
+  lateCount,
+  next7Count,
+  next30Count,
+}: {
+  total: number;
+  lateCount: number;
+  next7Count: number;
+  next30Count: number;
+}) {
+  if (total === 0) {
+    return {
+      label: "À configurer",
+      title: "Votre registre d’échéances est prêt.",
+      description:
+        "Ajoutez vos premières obligations pour transformer DuePilot en cockpit de suivi administratif.",
+      className: "border-blue-400/20 bg-blue-400/10 text-blue-100",
+    };
+  }
+
+  if (lateCount > 0) {
+    return {
+      label: "Risque élevé",
+      title: "Des échéances sont en retard.",
+      description:
+        "Traitez-les en priorité pour limiter les risques de non-conformité, de pénalité ou d’interruption d’activité.",
+      className: "border-red-400/20 bg-red-400/10 text-red-100",
+    };
+  }
+
+  if (next7Count > 0) {
+    return {
+      label: "Attention requise",
+      title: "Certaines dates arrivent très vite.",
+      description:
+        "Votre suivi est en place, mais les prochains jours demandent une attention particulière.",
+      className: "border-orange-400/20 bg-orange-400/10 text-orange-100",
+    };
+  }
+
+  if (next30Count > 0) {
+    return {
+      label: "Planifié",
+      title: "Le mois à venir est identifié.",
+      description:
+        "Vos prochaines obligations sont visibles suffisamment tôt pour être préparées sans urgence.",
+      className: "border-yellow-400/20 bg-yellow-400/10 text-yellow-100",
+    };
+  }
+
+  return {
+    label: "Sous contrôle",
+    title: "Aucune échéance critique à court terme.",
+    description:
+      "Votre planning administratif est sain. Continuez à centraliser vos obligations pour garder une vision complète.",
+    className: "border-emerald-400/20 bg-emerald-400/10 text-emerald-100",
+  };
 }
 
 export default async function DeadlinesPage() {
@@ -78,113 +203,385 @@ export default async function DeadlinesPage() {
       <main className="min-h-screen bg-slate-950 p-6 text-white sm:p-8">
         <div className="mx-auto max-w-6xl">
           <p className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-200">
-            Erreur Supabase : {error.message}
+            Impossible de charger vos échéances pour le moment. Réessayez dans
+            quelques instants.
           </p>
         </div>
       </main>
     );
   }
 
+  const today = getTodayAtMidnight();
+  const deadlineList = deadlines ?? [];
+
+  const enrichedDeadlines: EnrichedDeadline[] = deadlineList.map((deadline) => {
+    const daysUntilDeadline = getDaysUntilDeadline(deadline.due_date, today);
+    const categoryLabel = deadline.category?.trim() || "Sans catégorie";
+
+    return {
+      ...deadline,
+      categoryLabel,
+      daysUntilDeadline,
+      formattedDate: formatDeadlineDate(deadline.due_date),
+      readableStatus: getReadableStatus(daysUntilDeadline),
+      compactStatus: getCompactStatus(daysUntilDeadline),
+      statusClassName: getStatusClassName(daysUntilDeadline),
+      indicatorClassName: getIndicatorClassName(daysUntilDeadline),
+      priorityLabel: getPriorityLabel(daysUntilDeadline),
+    };
+  });
+
+  const total = enrichedDeadlines.length;
+  const lateCount = enrichedDeadlines.filter(
+    (deadline) => deadline.daysUntilDeadline < 0
+  ).length;
+  const todayCount = enrichedDeadlines.filter(
+    (deadline) => deadline.daysUntilDeadline === 0
+  ).length;
+  const next7Count = enrichedDeadlines.filter(
+    (deadline) =>
+      deadline.daysUntilDeadline >= 0 && deadline.daysUntilDeadline <= 7
+  ).length;
+  const next30Count = enrichedDeadlines.filter(
+    (deadline) =>
+      deadline.daysUntilDeadline >= 0 && deadline.daysUntilDeadline <= 30
+  ).length;
+  const safeCount = enrichedDeadlines.filter(
+    (deadline) => deadline.daysUntilDeadline > 30
+  ).length;
+
+  const nextDeadline = enrichedDeadlines[0];
+  const urgentDeadlines = enrichedDeadlines.filter(
+    (deadline) => deadline.daysUntilDeadline <= 30
+  );
+  const insight = getDeadlineInsight({
+    total,
+    lateCount,
+    next7Count,
+    next30Count,
+  });
+
+  const categoryCount = new Set(
+    enrichedDeadlines.map((deadline) => deadline.categoryLabel)
+  ).size;
+
+  const statCards = [
+    {
+      label: "En retard",
+      value: lateCount,
+      helper: "À régulariser",
+      className: "border-red-500/20 bg-red-500/10",
+      valueClassName: "text-red-100",
+    },
+    {
+      label: "Aujourd’hui",
+      value: todayCount,
+      helper: "Actions du jour",
+      className: "border-orange-500/20 bg-orange-500/10",
+      valueClassName: "text-orange-100",
+    },
+    {
+      label: "Sous 30 jours",
+      value: next30Count,
+      helper: "À anticiper",
+      className: "border-yellow-500/20 bg-yellow-500/10",
+      valueClassName: "text-yellow-100",
+    },
+    {
+      label: "Sous contrôle",
+      value: safeCount,
+      helper: "Au-delà de 30 jours",
+      className: "border-emerald-500/20 bg-emerald-500/10",
+      valueClassName: "text-emerald-100",
+    },
+  ];
+
   return (
-    <main className="min-h-screen bg-slate-950 p-6 text-white sm:p-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <main className="min-h-screen overflow-hidden bg-slate-950 text-white">
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute left-1/2 top-0 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-blue-500/10 blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-[360px] w-[520px] rounded-full bg-cyan-400/10 blur-3xl" />
+      </div>
+
+      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-10">
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <Link
             href="/dashboard"
-            className="text-sm font-medium text-blue-300 transition hover:text-blue-200"
+            className="inline-flex w-fit items-center gap-2 text-sm font-medium text-blue-200 transition hover:text-white"
           >
-            ← Retour au dashboard
+            <span aria-hidden="true">←</span>
+            Retour au dashboard
           </Link>
 
-          <LogoutButton />
-        </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Link
+              href="/deadlines/new"
+              className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-400"
+            >
+              + Nouvelle échéance
+            </Link>
+            <LogoutButton />
+          </div>
+        </header>
 
-        <div className="mt-8 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-4xl font-bold">Mes échéances</h1>
-            <p className="mt-2 text-slate-400">
-              Retrouvez ici toutes les échéances de votre entreprise.
-            </p>
+        <section className="mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-blue-950/20 backdrop-blur">
+          <div className="relative p-6 sm:p-8 lg:p-10">
+            <div className="absolute right-0 top-0 h-44 w-44 rounded-full bg-blue-500/20 blur-3xl" />
+
+            <div className="relative grid gap-8 lg:grid-cols-[1.35fr_0.85fr] lg:items-end">
+              <div>
+                <div className="inline-flex rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-blue-100">
+                  Registre des échéances
+                </div>
+
+                <h1 className="mt-5 max-w-3xl text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
+                  Toutes vos obligations importantes au même endroit.
+                </h1>
+
+                <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
+                  Consultez vos assurances, certifications, contrats, habilitations
+                  et contrôles réglementaires avec une lecture claire des priorités.
+                </p>
+
+                <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-300">
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
+                    {total} échéance{total > 1 ? "s" : ""} suivie{total > 1 ? "s" : ""}
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
+                    {categoryCount} catégorie{categoryCount > 1 ? "s" : ""}
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
+                    {urgentDeadlines.length} priorité{urgentDeadlines.length > 1 ? "s" : ""}
+                  </span>
+                </div>
+              </div>
+
+              <div className={`rounded-3xl border p-5 ${insight.className}`}>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80">
+                  {insight.label}
+                </p>
+                <h2 className="mt-4 text-2xl font-bold text-white">
+                  {insight.title}
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-slate-200/80">
+                  {insight.description}
+                </p>
+
+                {nextDeadline ? (
+                  <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/30 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
+                      Prochaine date
+                    </p>
+                    <p className="mt-2 font-semibold text-white">
+                      {nextDeadline.title}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-300">
+                      {nextDeadline.formattedDate} · {nextDeadline.readableStatus}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {statCards.map((card) => (
+            <div
+              key={card.label}
+              className={`rounded-3xl border p-5 shadow-xl shadow-slate-950/20 ${card.className}`}
+            >
+              <p className="text-sm font-medium text-slate-300">{card.label}</p>
+              <p className={`mt-4 text-5xl font-bold ${card.valueClassName}`}>
+                {card.value}
+              </p>
+              <p className="mt-3 text-sm text-slate-400">{card.helper}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="mt-6 rounded-[2rem] border border-white/10 bg-slate-900/80 shadow-2xl shadow-slate-950/20">
+          <div className="border-b border-white/10 p-5 sm:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-white">
+                  Liste des échéances
+                </h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Triées automatiquement par date d’échéance, de la plus proche à
+                  la plus lointaine.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-300">
+                <span className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-red-100">
+                  {lateCount} en retard
+                </span>
+                <span className="rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-orange-100">
+                  {next7Count} sous 7 jours
+                </span>
+                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-emerald-100">
+                  {safeCount} stables
+                </span>
+              </div>
+            </div>
           </div>
 
-          <Link
-            href="/deadlines/new"
-            className="inline-flex justify-center rounded-xl bg-blue-500 px-5 py-3 font-semibold text-white transition hover:bg-blue-400"
-          >
-            + Nouvelle échéance
-          </Link>
-        </div>
+          {total === 0 ? (
+            <div className="p-8 text-center sm:p-12">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-400/10 text-2xl">
+                ✦
+              </div>
+              <h3 className="mt-6 text-2xl font-bold text-white">
+                Aucune échéance enregistrée
+              </h3>
+              <p className="mx-auto mt-3 max-w-xl text-slate-400">
+                Ajoutez une première assurance, certification, habilitation ou
+                vérification périodique pour commencer à sécuriser votre suivi.
+              </p>
+              <Link
+                href="/deadlines/new"
+                className="mt-7 inline-flex justify-center rounded-xl bg-blue-500 px-5 py-3 font-semibold text-white transition hover:bg-blue-400"
+              >
+                Créer ma première échéance
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="hidden overflow-x-auto lg:block">
+                <table className="w-full min-w-[900px]">
+                  <thead>
+                    <tr className="border-b border-white/10 text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      <th className="px-6 py-4">Échéance</th>
+                      <th className="px-6 py-4">Catégorie</th>
+                      <th className="px-6 py-4">Date</th>
+                      <th className="px-6 py-4">Statut</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
 
-        <div className="mt-10 overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px]">
-              <thead className="bg-slate-800 text-left">
-                <tr>
-                  <th className="p-4">Nom</th>
-                  <th className="p-4">Catégorie</th>
-                  <th className="p-4">Date</th>
-                  <th className="p-4">Statut</th>
-                  <th className="p-4">Actions</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {deadlines?.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="p-10 text-center">
-                      <p className="text-lg font-semibold text-white">
-                        Aucune échéance pour le moment
-                      </p>
-
-                      <p className="mt-2 text-slate-400">
-                        Ajoutez votre première échéance pour commencer à suivre
-                        vos obligations importantes.
-                      </p>
-
-                      <Link
-                        href="/deadlines/new"
-                        className="mt-6 inline-flex rounded-xl bg-blue-500 px-5 py-3 font-semibold text-white transition hover:bg-blue-400"
+                  <tbody className="divide-y divide-white/10">
+                    {enrichedDeadlines.map((deadline) => (
+                      <tr
+                        key={deadline.id}
+                        className="group transition hover:bg-white/[0.03]"
                       >
-                        Créer ma première échéance
-                      </Link>
-                    </td>
-                  </tr>
-                )}
+                        <td className="px-6 py-5">
+                          <div className="flex items-start gap-4">
+                            <span
+                              className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full ${deadline.indicatorClassName}`}
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-white transition group-hover:text-blue-100">
+                                {deadline.title}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                {deadline.priorityLabel}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
 
-                {deadlines?.map((deadline) => (
-                  <tr key={deadline.id} className="border-t border-white/10">
-                    <td className="p-4 font-medium text-white">
-                      {deadline.title}
-                    </td>
-                    <td className="p-4 text-slate-300">{deadline.category}</td>
-                    <td className="p-4 text-slate-300">
-                      {new Date(deadline.due_date).toLocaleDateString("fr-FR")}
-                    </td>
-                    <td
-                      className={`p-4 font-medium ${getDeadlineStatusColor(
-                        deadline.due_date
-                      )}`}
-                    >
-                      {getDeadlineStatus(deadline.due_date)}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex gap-2">
-                        <Link
-                          href={`/deadlines/edit/${deadline.id}`}
-                          className="rounded-lg bg-blue-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-400"
-                        >
-                          Modifier
-                        </Link>
+                        <td className="px-6 py-5">
+                          <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm font-medium text-slate-200">
+                            {deadline.categoryLabel}
+                          </span>
+                        </td>
 
-                        <DeleteDeadlineButton id={deadline.id} />
+                        <td className="px-6 py-5">
+                          <p className="font-medium text-slate-200">
+                            {deadline.formattedDate}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {deadline.compactStatus}
+                          </p>
+                        </td>
+
+                        <td className="px-6 py-5">
+                          <span
+                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${deadline.statusClassName}`}
+                          >
+                            {deadline.readableStatus}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-5">
+                          <div className="flex justify-end gap-2">
+                            <Link
+                              href={`/deadlines/edit/${deadline.id}`}
+                              className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                            >
+                              Modifier
+                            </Link>
+
+                            <DeleteDeadlineButton id={deadline.id} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="space-y-3 p-4 lg:hidden">
+                {enrichedDeadlines.map((deadline) => (
+                  <article
+                    key={deadline.id}
+                    className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 shadow-xl shadow-slate-950/20"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`h-2.5 w-2.5 shrink-0 rounded-full ${deadline.indicatorClassName}`}
+                          />
+                          <p className="truncate font-semibold text-white">
+                            {deadline.title}
+                          </p>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-400">
+                          {deadline.categoryLabel}
+                        </p>
                       </div>
-                    </td>
-                  </tr>
+
+                      <span
+                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${deadline.statusClassName}`}
+                      >
+                        {deadline.compactStatus}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-sm sm:grid-cols-2">
+                      <div>
+                        <p className="text-slate-500">Date</p>
+                        <p className="mt-1 font-medium text-slate-100">
+                          {deadline.formattedDate}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Statut</p>
+                        <p className="mt-1 font-medium text-slate-100">
+                          {deadline.readableStatus}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex gap-2">
+                      <Link
+                        href={`/deadlines/edit/${deadline.id}`}
+                        className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                      >
+                        Modifier
+                      </Link>
+
+                      <DeleteDeadlineButton id={deadline.id} />
+                    </div>
+                  </article>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              </div>
+            </>
+          )}
+        </section>
       </div>
     </main>
   );
