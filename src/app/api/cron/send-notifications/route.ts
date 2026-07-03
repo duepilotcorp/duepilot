@@ -1,7 +1,17 @@
-import { supabaseAdmin } from "@/lib/supabase/admin";
 import { Resend } from "resend";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+function isAuthorizedCronRequest(request: Request) {
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!cronSecret) {
+    return false;
+  }
+
+  return request.headers.get("authorization") === `Bearer ${cronSecret}`;
+}
 
 function getDaysUntilDueDate(dueDate: string) {
   const today = new Date();
@@ -15,14 +25,28 @@ function getDaysUntilDueDate(dueDate: string) {
   );
 }
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-const secret = searchParams.get("secret");
-
-if (secret !== process.env.CRON_SECRET) {
-  return Response.json({ error: "Unauthorized" }, { status: 401 });
+function escapeHtml(value: string | null | undefined) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
+export async function GET(request: Request) {
+  if (!process.env.CRON_SECRET) {
+    console.error("CRON_SECRET is not configured.");
+
+    return Response.json(
+      { error: "Cron is not configured correctly." },
+      { status: 500 }
+    );
+  }
+
+  if (!isAuthorizedCronRequest(request)) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const { data: deadlines, error } = await supabaseAdmin
     .from("deadlines")
@@ -33,87 +57,91 @@ if (secret !== process.env.CRON_SECRET) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 
-const deadlinesToNotify = [];
+  const deadlinesToNotify = [];
 
-for (const deadline of deadlines) {
-  const daysUntilDueDate = getDaysUntilDueDate(deadline.due_date);
-  const notificationDays = deadline.notification_days ?? [30, 7, 1];
+  for (const deadline of deadlines) {
+    const daysUntilDueDate = getDaysUntilDueDate(deadline.due_date);
+    const notificationDays = deadline.notification_days ?? [30, 7, 1];
 
-  if (!notificationDays.includes(daysUntilDueDate)) {
-    continue;
+    if (!notificationDays.includes(daysUntilDueDate)) {
+      continue;
+    }
+
+    const { data: existingLog } = await supabaseAdmin
+      .from("notification_logs")
+      .select("id")
+      .eq("deadline_id", deadline.id)
+      .eq("user_id", deadline.user_id)
+      .eq("notification_day", daysUntilDueDate)
+      .maybeSingle();
+
+    if (existingLog) {
+      continue;
+    }
+
+    const { data: userData, error: userError } =
+      await supabaseAdmin.auth.admin.getUserById(deadline.user_id);
+
+    if (userError || !userData.user?.email) {
+      continue;
+    }
+
+    const email = userData.user.email;
+    const safeTitle = escapeHtml(deadline.title);
+    const safeCategory = escapeHtml(deadline.category);
+    const safeDueDate = escapeHtml(deadline.due_date);
+
+    const { error: emailError } = await resend.emails.send({
+      from: "DuePilot <onboarding@resend.dev>",
+      // Resend est encore en mode test : remettre `email` dès que le domaine est validé.
+      to: "duepilotcorp@gmail.com",
+      subject: `Rappel échéance : ${deadline.title}`,
+      html: `
+        <h2>Rappel d'échéance</h2>
+
+        <p>
+          Votre échéance <strong>${safeTitle}</strong>
+          arrive dans <strong>${daysUntilDueDate} jour(s)</strong>.
+        </p>
+
+        <p>
+          Catégorie : ${safeCategory}
+        </p>
+
+        <p>
+          Date d'échéance : ${safeDueDate}
+        </p>
+
+        <br>
+
+        <p>
+          Équipe DuePilot
+        </p>
+      `,
+    });
+
+    if (emailError) {
+      console.error(emailError);
+      continue;
+    }
+
+    await supabaseAdmin.from("notification_logs").insert({
+      deadline_id: deadline.id,
+      user_id: deadline.user_id,
+      notification_day: daysUntilDueDate,
+    });
+
+    deadlinesToNotify.push({
+      ...deadline,
+      notification_day: daysUntilDueDate,
+      email,
+    });
   }
-
-  const { data: existingLog } = await supabaseAdmin
-    .from("notification_logs")
-    .select("id")
-    .eq("deadline_id", deadline.id)
-    .eq("user_id", deadline.user_id)
-    .eq("notification_day", daysUntilDueDate)
-    .maybeSingle();
-
-  if (existingLog) {
-    continue;
-  }
-
-  const { data: userData, error: userError } =
-  await supabaseAdmin.auth.admin.getUserById(deadline.user_id);
-
-if (userError || !userData.user?.email) {
-  continue;
-}
-
-const email = userData.user.email;
-
-const { error: emailError } = await resend.emails.send({
-  from: "DuePilot <onboarding@resend.dev>",
-  to: "duepilotcorp@gmail.com",
-  subject: `Rappel échéance : ${deadline.title}`,
-  html: `
-    <h2>Rappel d'échéance</h2>
-
-    <p>
-      Votre échéance <strong>${deadline.title}</strong>
-      arrive dans <strong>${daysUntilDueDate} jour(s)</strong>.
-    </p>
-
-    <p>
-      Catégorie : ${deadline.category}
-    </p>
-
-    <p>
-      Date d'échéance : ${deadline.due_date}
-    </p>
-
-    <br>
-
-    <p>
-      Équipe DuePilot
-    </p>
-  `,
-});
-
-if (emailError) {
-  console.error(emailError);
-  continue;
-}
-
-await supabaseAdmin.from("notification_logs").insert({
-  deadline_id: deadline.id,
-  user_id: deadline.user_id,
-  notification_day: daysUntilDueDate,
-});
-
-deadlinesToNotify.push({
-  ...deadline,
-  notification_day: daysUntilDueDate,
-  email,
-});
-}
 
   return Response.json({
-  success: true,
-  totalDeadlines: deadlines.length,
-  notificationsToSend: deadlinesToNotify.length,
-  deadlinesToNotify,
-});
+    success: true,
+    totalDeadlines: deadlines.length,
+    notificationsToSend: deadlinesToNotify.length,
+    deadlinesToNotify,
+  });
 }

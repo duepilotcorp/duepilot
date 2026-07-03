@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import { getSafeRedirectPath } from "@/lib/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -55,7 +56,7 @@ export default function LoginPage() {
       "redirectedFrom"
     );
 
-    router.replace(redirectedFrom || "/dashboard");
+    router.replace(getSafeRedirectPath(redirectedFrom));
     router.refresh();
   };
 

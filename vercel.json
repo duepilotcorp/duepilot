@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron/send-notifications?secret=duepilot_cron_72026201814041963270220011997",
+      "path": "/api/cron/send-notifications",
       "schedule": "0 8 * * *"
     }
   ]
