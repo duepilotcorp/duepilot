@@ -109,6 +109,7 @@ export async function GET(request: Request) {
       .eq("deadline_id", deadline.id)
       .eq("user_id", deadline.user_id)
       .eq("notification_day", daysUntilDueDate)
+      .eq("due_date", deadline.due_date)
       .maybeSingle();
 
     if (existingLog) {
@@ -168,6 +169,7 @@ export async function GET(request: Request) {
       deadline_id: deadline.id,
       user_id: deadline.user_id,
       notification_day: daysUntilDueDate,
+      due_date: deadline.due_date,
     });
 
     deadlinesToNotify.push({
