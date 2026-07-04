@@ -8,11 +8,13 @@ import { createClient } from "@/lib/supabase/client";
 type DeleteDeadlineButtonProps = {
   id: number;
   documentFilePath?: string | null;
+  redirectTo?: string;
 };
 
 export default function DeleteDeadlineButton({
   id,
   documentFilePath,
+  redirectTo,
 }: DeleteDeadlineButtonProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -60,8 +62,12 @@ export default function DeleteDeadlineButton({
       }
     }
 
-    router.refresh();
-    setIsDeleting(false);
+    if (redirectTo) {
+      router.push(redirectTo);
+    } else {
+      router.refresh();
+      setIsDeleting(false);
+    }
   };
 
   return (

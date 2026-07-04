@@ -745,9 +745,9 @@ export default async function DeadlinesPage({
                       <thead>
                         <tr className="border-b border-white/10 text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                           <th className="px-6 py-4">Échéance</th>
-                          <th className="px-6 py-4">Catégorie</th>
-                          <th className="px-6 py-4">Date</th>
-                          <th className="px-6 py-4">Statut</th>
+                          <th className="px-6 py-4 whitespace-nowrap">Catégorie</th>
+                          <th className="px-6 py-4 whitespace-nowrap">Date</th>
+                          <th className="px-6 py-4 whitespace-nowrap">Statut</th>
                           <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
                       </thead>
@@ -764,9 +764,12 @@ export default async function DeadlinesPage({
                                   className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full ${deadline.indicatorClassName}`}
                                 />
                                 <div className="min-w-0">
-                                  <p className="truncate font-semibold text-white transition group-hover:text-blue-100">
+                                  <Link
+                                    href={`/deadlines/${deadline.id}`}
+                                    className="block truncate font-semibold text-white transition hover:text-blue-100"
+                                  >
                                     {deadline.title}
-                                  </p>
+                                  </Link>
                                   <p className="mt-1 text-sm text-slate-500">
                                     {deadline.priorityLabel}
                                   </p>
@@ -783,13 +786,13 @@ export default async function DeadlinesPage({
                             </td>
 
                             <td className="px-6 py-5">
-                              <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm font-medium text-slate-200">
+                              <span className="inline-flex whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm font-medium text-slate-200">
                                 {deadline.categoryLabel}
                               </span>
                             </td>
 
                             <td className="px-6 py-5">
-                              <p className="font-medium text-slate-200">
+                              <p className="whitespace-nowrap font-medium text-slate-200">
                                 {deadline.formattedDate}
                               </p>
                               <p className="mt-1 text-sm text-slate-500">
@@ -799,7 +802,7 @@ export default async function DeadlinesPage({
 
                             <td className="px-6 py-5">
                               <span
-                                className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${deadline.statusClassName}`}
+                                className={`inline-flex whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold ${deadline.statusClassName}`}
                               >
                                 {deadline.readableStatus}
                               </span>
@@ -838,9 +841,12 @@ export default async function DeadlinesPage({
                               <span
                                 className={`h-2.5 w-2.5 shrink-0 rounded-full ${deadline.indicatorClassName}`}
                               />
-                              <p className="truncate font-semibold text-white">
+                              <Link
+                                href={`/deadlines/${deadline.id}`}
+                                className="truncate font-semibold text-white transition hover:text-blue-100"
+                              >
                                 {deadline.title}
-                              </p>
+                              </Link>
                             </div>
                             <p className="mt-2 text-sm text-slate-400">
                               {deadline.categoryLabel}
@@ -884,7 +890,14 @@ export default async function DeadlinesPage({
                           </div>
                         </div>
 
-                        <div className="mt-4 flex gap-2">
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <Link
+                            href={`/deadlines/${deadline.id}`}
+                            className="flex-1 rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-center text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white"
+                          >
+                            Consulter
+                          </Link>
+
                           <Link
                             href={`/deadlines/edit/${deadline.id}`}
                             className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"

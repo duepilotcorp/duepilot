@@ -427,7 +427,7 @@ export default async function DashboardPage() {
                   urgentDeadlines.map((deadline) => (
                     <Link
                       key={deadline.id}
-                      href={`/deadlines/edit/${deadline.id}`}
+                      href={`/deadlines/${deadline.id}`}
                       className="group block rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-blue-400/40 hover:bg-blue-400/10"
                     >
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -493,10 +493,10 @@ export default async function DashboardPage() {
                       </Link>
                     ) : null}
                     <Link
-                      href={`/deadlines/edit/${nextCriticalDeadline.id}`}
+                      href={`/deadlines/${nextCriticalDeadline.id}`}
                       className="mt-6 inline-flex w-full justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-blue-400/40 hover:bg-blue-400/10"
                     >
-                      Vérifier cette échéance
+                      Ouvrir le détail
                     </Link>
                   </div>
                 ) : null}
@@ -523,9 +523,10 @@ export default async function DashboardPage() {
                 <div className="mt-5 space-y-4">
                   {upcomingDeadlines.length > 0 ? (
                     upcomingDeadlines.map((deadline) => (
-                      <div
+                      <Link
                         key={deadline.id}
-                        className="flex items-center justify-between gap-4 border-b border-white/10 pb-4 last:border-0 last:pb-0"
+                        href={`/deadlines/${deadline.id}`}
+                        className="flex items-center justify-between gap-4 border-b border-white/10 pb-4 transition hover:text-blue-100 last:border-0 last:pb-0"
                       >
                         <div className="min-w-0">
                           <p className="truncate font-medium text-white">
@@ -541,7 +542,7 @@ export default async function DashboardPage() {
                             ? ""
                             : `-${deadline.daysUntilDeadline}`}
                         </span>
-                      </div>
+                      </Link>
                     ))
                   ) : (
                     <p className="text-sm text-slate-400">
