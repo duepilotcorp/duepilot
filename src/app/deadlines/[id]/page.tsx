@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import ActivityLogList from "@/components/ActivityLogList";
 import DeleteDeadlineButton from "@/components/DeleteDeadlineButton";
 import RenewDeadlineForm from "@/components/RenewDeadlineForm";
-import { getActivityLogTone, getDeadlineActivityLogs } from "@/lib/activity-logs";
+import { getDeadlineActivityLogs } from "@/lib/activity-logs";
 import { formatFileSize } from "@/lib/deadline-documents";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
 import { createClient } from "@/lib/supabase/server";
@@ -276,7 +277,7 @@ export default async function DeadlineDetailPage({
     supabase,
     userId: user.id,
     deadlineId: typedDeadline.id,
-    limit: 10,
+    limit: 40,
   });
 
   const formattedDueDate = formatDeadlineDate(typedDeadline.due_date);
@@ -329,7 +330,7 @@ export default async function DeadlineDetailPage({
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
-              href={`/deadlines/edit/${typedDeadline.id}`}
+              href={`/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
               className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
             >
               Modifier
@@ -351,7 +352,7 @@ export default async function DeadlineDetailPage({
             <div className="relative grid gap-8 lg:grid-cols-[1.35fr_0.85fr] lg:items-end">
               <div>
                 <div className="inline-flex rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-blue-100">
-                  Détail d’échéance
+Fiche échéance
                 </div>
 
                 <h1 className="mt-5 max-w-4xl break-words text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
@@ -359,8 +360,7 @@ export default async function DeadlineDetailPage({
                 </h1>
 
                 <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-                  Consultez le statut, les rappels, le document associé et
-                  l’historique de notification de cette obligation.
+                  Statut, document, rappels et historique regroupés au même endroit.
                 </p>
 
                 <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-300">
@@ -407,16 +407,6 @@ export default async function DeadlineDetailPage({
           ))}
         </section>
 
-        <RenewDeadlineForm
-          deadline={{
-            id: typedDeadline.id,
-            title: typedDeadline.title,
-            category: typedDeadline.category,
-            due_date: typedDeadline.due_date,
-            notification_days: typedDeadline.notification_days,
-          }}
-          document={document}
-        />
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.9fr]">
           <div className="space-y-6">
@@ -432,7 +422,7 @@ export default async function DeadlineDetailPage({
                   </p>
                 </div>
                 <Link
-                  href={`/deadlines/edit/${typedDeadline.id}`}
+                  href={`/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
                   className="inline-flex justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
                 >
                   Modifier l’échéance
@@ -507,114 +497,6 @@ export default async function DeadlineDetailPage({
                 </div>
               )}
             </section>
-          </div>
-
-          <aside className="space-y-6">
-            <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-white">
-                    Document associé
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-400">
-                    Le justificatif ou contrat lié à cette obligation.
-                  </p>
-                </div>
-                <span className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xl">
-                  PDF
-                </span>
-              </div>
-
-              {document ? (
-                <div className="mt-6 rounded-3xl border border-blue-400/20 bg-blue-400/10 p-5">
-                  <p className="break-words text-lg font-bold text-white">
-                    {document.file_name}
-                  </p>
-                  <p className="mt-2 text-sm text-blue-100/80">
-                    {formatFileSize(document.file_size)} · fichier sécurisé
-                  </p>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                    <Link
-                      href={`/deadlines/documents/${document.id}`}
-                      className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
-                    >
-                      Voir le PDF
-                    </Link>
-                    <a
-                      href={`/api/deadline-documents/${document.id}?download=1`}
-                      className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-                    >
-                      Télécharger
-                    </a>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-6 rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
-                  <p className="font-semibold text-white">Aucun document joint.</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    Ajoutez une attestation, un contrat ou un certificat PDF
-                    depuis la page de modification.
-                  </p>
-                  <Link
-                    href={`/deadlines/edit/${typedDeadline.id}`}
-                    className="mt-5 inline-flex justify-center rounded-xl border border-blue-400/25 bg-blue-400/10 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white"
-                  >
-                    Ajouter un PDF
-                  </Link>
-                </div>
-              )}
-            </section>
-
-            <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
-              <div>
-                <h2 className="text-2xl font-bold text-white">
-                  Journal d’activité
-                </h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  Les dernières actions enregistrées sur cette échéance.
-                </p>
-              </div>
-
-              <div className="mt-6 space-y-3">
-                {activityLogs.length > 0 ? (
-                  activityLogs.map((log) => (
-                    <div
-                      key={log.id}
-                      className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
-                    >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
-                          <p className="font-semibold text-slate-100">
-                            {log.title}
-                          </p>
-                          {log.description ? (
-                            <p className="mt-2 text-sm leading-6 text-slate-400">
-                              {log.description}
-                            </p>
-                          ) : null}
-                        </div>
-
-                        <span
-                          className={`w-fit shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${getActivityLogTone(log.action)}`}
-                        >
-                          {formatDateTime(log.created_at)}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <p className="font-semibold text-white">
-                      Aucun événement enregistré pour le moment.
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">
-                      Les prochaines créations, modifications, documents et
-                      notifications apparaîtront automatiquement ici.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </section>
 
             <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
               <div>
@@ -662,8 +544,92 @@ export default async function DeadlineDetailPage({
                 )}
               </div>
             </section>
+          </div>
+
+          <aside className="space-y-6">
+            <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">
+                    Document associé
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Le justificatif PDF lié à cette obligation.
+                  </p>
+                </div>
+                <span className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xl">
+                  PDF
+                </span>
+              </div>
+
+              {document ? (
+                <div className="mt-6 rounded-3xl border border-blue-400/20 bg-blue-400/10 p-5">
+                  <p className="break-words text-lg font-bold text-white">
+                    {document.file_name}
+                  </p>
+                  <p className="mt-2 text-sm text-blue-100/80">
+                    {formatFileSize(document.file_size)} · fichier sécurisé
+                  </p>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                    <Link
+                      href={`/deadlines/documents/${document.id}`}
+                      className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
+                    >
+                      Voir le PDF
+                    </Link>
+                    <a
+                      href={`/api/deadline-documents/${document.id}?download=1`}
+                      className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                    >
+                      Télécharger
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-6 rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
+                  <p className="font-semibold text-white">Aucun document joint.</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    Ajoutez une attestation, un contrat ou un certificat PDF
+                    depuis la modification de l’échéance.
+                  </p>
+                  <Link
+                    href={`/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
+                    className="mt-5 inline-flex justify-center rounded-xl border border-blue-400/25 bg-blue-400/10 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white"
+                  >
+                    Ajouter un PDF
+                  </Link>
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
+              <div>
+                <h2 className="text-2xl font-bold text-white">
+                  Journal d’activité
+                </h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Les dernières actions enregistrées sur cette échéance.
+                </p>
+              </div>
+
+              <div className="mt-6">
+                <ActivityLogList logs={activityLogs} />
+              </div>
+            </section>
+
           </aside>
         </section>
+
+        <RenewDeadlineForm
+          deadline={{
+            id: typedDeadline.id,
+            title: typedDeadline.title,
+            category: typedDeadline.category,
+            due_date: typedDeadline.due_date,
+            notification_days: typedDeadline.notification_days,
+          }}
+          document={document}
+        />
       </div>
     </main>
   );

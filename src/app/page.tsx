@@ -1,10 +1,14 @@
 import Link from "next/link";
+import LogoutButton from "@/components/LogoutButton";
+import { createClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
 
 const trustSignals = [
   "Échéances réglementaires",
+  "Documents centralisés",
   "Rappels personnalisables",
-  "Dashboard temps réel",
-  "Isolation des données",
+  "Données isolées",
 ];
 
 const risks = [
@@ -47,22 +51,29 @@ const workflowSteps = [
 ];
 
 const features = [
-  "Vue cockpit des risques administratifs",
-  "Recherche, filtres et tri des échéances",
-  "Rappels à J-30, J-15, J-7, J-3, J-1 et jour J",
-  "Historique technique des notifications",
+  "Vue claire des échéances critiques",
+  "Recherche, filtres et tri des obligations",
+  "Rappels personnalisables jusqu’au jour J",
+  "Documents PDF liés aux échéances",
+  "Journal d’activité et traçabilité",
   "Accès sécurisé avec données isolées par utilisateur",
-  "Interface pensée pour les dirigeants et équipes administratives",
 ];
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const isAuthenticated = Boolean(user);
+
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 text-white">
       <section className="relative border-b border-white/10 px-6 py-6 sm:px-8 lg:px-10">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.28),transparent_34%),radial-gradient(circle_at_80%_20%,rgba(14,165,233,0.18),transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_55%,#020617_100%)]" />
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-6">
           <Link href="/" className="group flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-300/25 bg-blue-400/10 shadow-[0_0_40px_rgba(59,130,246,0.18)]">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-300/25 bg-blue-400/10 shadow-[0_0_40px_rgba(59,130,246,0.18)] transition group-hover:border-blue-200/40 group-hover:bg-blue-400/15">
               <span className="h-4 w-4 rounded-full bg-blue-300 shadow-[0_0_24px_rgba(147,197,253,0.85)]" />
             </span>
             <span>
@@ -88,18 +99,34 @@ export default function Home() {
           </nav>
 
           <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="hidden rounded-full px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white sm:inline-flex"
-            >
-              Connexion
-            </Link>
-            <Link
-              href="/register"
-              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950 shadow-2xl shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-50"
-            >
-              Demander un accès beta
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link
+                  href="/dashboard"
+                  className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950 shadow-2xl shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-50"
+                >
+                  Accéder à mon espace
+                </Link>
+                <div className="hidden sm:block">
+                  <LogoutButton />
+                </div>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="hidden rounded-full px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white sm:inline-flex"
+                >
+                  Connexion
+                </Link>
+                <Link
+                  href="/register"
+                  className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950 shadow-2xl shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-50"
+                >
+                  Demander un accès
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -107,35 +134,34 @@ export default function Home() {
       <section className="relative px-6 pb-20 pt-16 sm:px-8 sm:pb-28 sm:pt-24 lg:px-10">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,rgba(59,130,246,0.16),transparent_38%)]" />
         <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.02fr_0.98fr]">
-          <div>
+          <div className="animate-rise-in">
             <div className="inline-flex items-center gap-2 rounded-full border border-blue-300/25 bg-blue-400/10 px-4 py-2 text-sm font-medium text-blue-100 shadow-[0_0_40px_rgba(59,130,246,0.10)]">
               <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(110,231,183,0.8)]" />
-              Beta privée · SaaS de suivi réglementaire
+              Suivi administratif intelligent
             </div>
 
             <h1 className="mt-7 max-w-4xl text-5xl font-semibold tracking-[-0.055em] text-white sm:text-6xl lg:text-7xl">
-              Le copilote administratif qui empêche les échéances critiques de
-              vous rattraper.
+              Gardez le contrôle sur vos échéances critiques.
             </h1>
 
             <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300 sm:text-xl sm:leading-9">
               DuePilot centralise assurances, certifications, contrats,
-              habilitations et contrôles obligatoires pour aider les entreprises
-              à anticiper les risques avant qu’ils ne deviennent des urgences.
+              habilitations, documents et contrôles obligatoires pour aider les
+              entreprises à anticiper les risques administratifs.
             </p>
 
             <div className="mt-10 flex flex-col gap-4 sm:flex-row">
               <Link
-                href="/register"
+                href={isAuthenticated ? "/dashboard" : "/register"}
                 className="inline-flex items-center justify-center rounded-2xl bg-blue-500 px-6 py-4 text-sm font-semibold text-white shadow-2xl shadow-blue-500/25 transition hover:-translate-y-0.5 hover:bg-blue-400"
               >
-                Demander un accès beta
+                {isAuthenticated ? "Accéder à mon espace" : "Demander un accès"}
               </Link>
               <Link
-                href="/login"
+                href={isAuthenticated ? "/deadlines" : "/login"}
                 className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.03] px-6 py-4 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white/10"
               >
-                Accéder à mon espace
+                {isAuthenticated ? "Voir mes échéances" : "Se connecter"}
               </Link>
             </div>
 
@@ -143,7 +169,7 @@ export default function Home() {
               {trustSignals.map((signal) => (
                 <div
                   key={signal}
-                  className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300"
+                  className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300 transition hover:border-blue-300/20 hover:bg-white/[0.055]"
                 >
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400/10 text-xs text-emerald-200">
                     ✓
@@ -154,9 +180,9 @@ export default function Home() {
             </div>
           </div>
 
-          <div id="produit" className="relative">
-            <div className="absolute -inset-8 -z-10 rounded-[3rem] bg-blue-500/10 blur-3xl" />
-            <div className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-4 shadow-2xl shadow-black/40 backdrop-blur">
+          <div id="produit" className="relative animate-rise-in-delay-1">
+            <div className="absolute -inset-8 -z-10 rounded-[3rem] bg-blue-500/10 blur-3xl animate-soft-pulse" />
+            <div className="premium-sheen rounded-[2rem] border border-white/10 bg-white/[0.06] p-4 shadow-2xl shadow-black/40 backdrop-blur">
               <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/90 p-5">
                 <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-5">
                   <div>
@@ -164,7 +190,7 @@ export default function Home() {
                       Cockpit DuePilot
                     </p>
                     <h2 className="mt-2 text-xl font-semibold">
-                      Risque administratif
+                      Santé administrative
                     </h2>
                   </div>
                   <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">
@@ -182,19 +208,19 @@ export default function Home() {
                     <p className="mt-3 text-3xl font-semibold text-yellow-100">4</p>
                   </div>
                   <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
-                    <p className="text-xs text-emerald-100/80">Total</p>
-                    <p className="mt-3 text-3xl font-semibold text-emerald-100">28</p>
+                    <p className="text-xs text-emerald-100/80">Documents</p>
+                    <p className="mt-3 text-3xl font-semibold text-emerald-100">21</p>
                   </div>
                 </div>
 
-                <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-orange-300/30 hover:bg-orange-400/10">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-sm font-semibold text-white">
                         Certification Qualité ISO
                       </p>
                       <p className="mt-1 text-xs text-slate-400">
-                        À traiter dans 7 jours · Rappel J-7 actif
+                        À traiter dans 7 jours · PDF associé
                       </p>
                     </div>
                     <span className="rounded-full border border-orange-400/25 bg-orange-400/10 px-3 py-1 text-xs font-semibold text-orange-100">
@@ -203,14 +229,14 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-blue-300/30 hover:bg-blue-400/10">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-sm font-semibold text-white">
                         Assurance responsabilité civile
                       </p>
                       <p className="mt-1 text-xs text-slate-400">
-                        À traiter dans 24 jours · Rappel J-30 envoyé
+                        À renouveler dans 24 jours · Rappel J-30 actif
                       </p>
                     </div>
                     <span className="rounded-full border border-blue-400/25 bg-blue-400/10 px-3 py-1 text-xs font-semibold text-blue-100">
@@ -221,8 +247,8 @@ export default function Home() {
 
                 <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-400/10 p-4">
                   <p className="text-sm font-medium text-blue-100">
-                    DuePilot détecte les prochaines priorités et vous aide à
-                    agir avant le retard.
+                    Une lecture claire des priorités, documents et prochaines
+                    actions à traiter.
                   </p>
                 </div>
               </div>
@@ -233,7 +259,7 @@ export default function Home() {
 
       <section className="border-y border-white/10 bg-white/[0.03] px-6 py-16 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
-          <div className="max-w-3xl">
+          <div className="max-w-3xl animate-rise-in">
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-blue-200">
               Problème traité
             </p>
@@ -246,7 +272,7 @@ export default function Home() {
             {risks.map((risk) => (
               <article
                 key={risk.title}
-                className="rounded-[1.7rem] border border-white/10 bg-slate-950/70 p-6 shadow-xl shadow-black/20"
+                className="rounded-[1.7rem] border border-white/10 bg-slate-950/70 p-6 shadow-xl shadow-black/20 transition hover:-translate-y-1 hover:border-blue-300/20 hover:bg-slate-900/80"
               >
                 <div className="mb-8 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-400/10 text-blue-100">
                   →
@@ -273,9 +299,9 @@ export default function Home() {
               Un système simple pour garder le contrôle.
             </h2>
             <p className="mt-5 max-w-xl leading-8 text-slate-400">
-              DuePilot ne cherche pas à complexifier votre organisation. Le
-              produit vous donne une vision claire : ce qui est en retard, ce
-              qui arrive bientôt, et ce qui est sous contrôle.
+              DuePilot vous donne une vision claire : ce qui est en retard, ce
+              qui arrive bientôt, les documents associés et les actions déjà
+              réalisées.
             </p>
           </div>
 
@@ -283,7 +309,7 @@ export default function Home() {
             {workflowSteps.map((item) => (
               <div
                 key={item.step}
-                className="grid gap-5 rounded-[1.7rem] border border-white/10 bg-white/[0.04] p-6 sm:grid-cols-[auto_1fr]"
+                className="grid gap-5 rounded-[1.7rem] border border-white/10 bg-white/[0.04] p-6 transition hover:border-blue-300/20 hover:bg-white/[0.06] sm:grid-cols-[auto_1fr]"
               >
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-300/25 bg-blue-400/10 text-sm font-semibold text-blue-100">
                   {item.step}
@@ -301,19 +327,19 @@ export default function Home() {
       </section>
 
       <section id="securite" className="px-6 pb-24 sm:px-8 lg:px-10">
-        <div className="mx-auto max-w-7xl rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 sm:p-8 lg:p-10">
+        <div className="mx-auto max-w-7xl rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-slate-950/25 sm:p-8 lg:p-10">
           <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.25em] text-blue-200">
-                Beta privée
+                Espace sécurisé
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] sm:text-5xl">
-                Une base pensée pour devenir un vrai SaaS B2B.
+                Une base claire pour suivre vos obligations sensibles.
               </h2>
               <p className="mt-5 leading-8 text-slate-400">
-                Authentification, isolation des données, rappels configurables,
-                cron sécurisé et historique technique : le socle est conçu pour
-                évoluer proprement vers une version commerciale.
+                DuePilot combine échéances, rappels, documents et historique
+                dans une interface pensée pour un suivi administratif sérieux,
+                lisible et durable.
               </p>
             </div>
 
@@ -321,7 +347,7 @@ export default function Home() {
               {features.map((feature) => (
                 <div
                   key={feature}
-                  className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sm leading-6 text-slate-300"
+                  className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sm leading-6 text-slate-300 transition hover:border-emerald-300/20 hover:bg-slate-900"
                 >
                   <span className="mb-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-400/10 text-xs text-emerald-200">
                     ✓
@@ -347,16 +373,16 @@ export default function Home() {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link
-              href="/register"
+              href={isAuthenticated ? "/dashboard" : "/register"}
               className="rounded-2xl bg-blue-500 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-400"
             >
-              Demander un accès beta
+              {isAuthenticated ? "Accéder à mon espace" : "Demander un accès"}
             </Link>
             <Link
-              href="/login"
+              href={isAuthenticated ? "/deadlines" : "/login"}
               className="rounded-2xl border border-white/15 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-white/10"
             >
-              Se connecter
+              {isAuthenticated ? "Voir mes échéances" : "Se connecter"}
             </Link>
           </div>
         </div>

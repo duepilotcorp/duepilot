@@ -237,9 +237,6 @@ export default async function DashboardPage() {
   const urgentDeadlines = enrichedDeadlines
     .filter((deadline) => deadline.daysUntilDeadline <= 30)
     .slice(0, 5);
-  const upcomingDeadlines = enrichedDeadlines
-    .filter((deadline) => deadline.daysUntilDeadline >= 0)
-    .slice(0, 5);
   const nextCriticalDeadline = enrichedDeadlines[0];
   const riskSummary = getRiskSummary({
     total,
@@ -303,33 +300,45 @@ export default async function DashboardPage() {
 
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-10">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Link
-            href="/"
-            className="inline-flex w-fit items-center gap-2 text-sm font-medium text-blue-200 transition hover:text-white"
-          >
-            <span aria-hidden="true">←</span>
-            Retour à l’accueil
+          <Link href="/dashboard" className="group flex w-fit items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-300/25 bg-blue-400/10 shadow-[0_0_40px_rgba(59,130,246,0.18)] transition group-hover:border-blue-200/40 group-hover:bg-blue-400/15">
+              <span className="h-4 w-4 rounded-full bg-blue-300 shadow-[0_0_24px_rgba(147,197,253,0.85)]" />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold tracking-[0.28em] text-blue-100">
+                DUEPILOT
+              </span>
+              <span className="hidden text-xs text-slate-500 sm:block">
+                Espace de suivi
+              </span>
+            </span>
           </Link>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
               href="/deadlines"
-              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-white/20 hover:bg-white/[0.06]"
+              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
             >
               Voir les échéances
+            </Link>
+            <Link
+              href="/deadlines/new"
+              className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-950/30 transition hover:-translate-y-0.5 hover:bg-blue-400"
+            >
+              Nouvelle échéance
             </Link>
             <LogoutButton />
           </div>
         </header>
 
-        <section className="mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-blue-950/20 backdrop-blur">
+        <section className="premium-sheen mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-blue-950/20 backdrop-blur animate-rise-in">
           <div className="relative p-6 sm:p-8 lg:p-10">
             <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-blue-500/20 blur-3xl" />
 
             <div className="relative grid gap-8 lg:grid-cols-[1.4fr_0.8fr] lg:items-end">
               <div>
                 <div className="inline-flex rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-blue-100">
-                  Cockpit administratif
+Vue d’ensemble
                 </div>
 
                 <p className="mt-5 text-sm font-medium text-slate-300">
@@ -337,14 +346,31 @@ export default async function DashboardPage() {
                 </p>
 
                 <h1 className="mt-3 max-w-3xl text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
-                  Pilotez vos échéances avant qu’elles ne deviennent des urgences.
+                  Ce qui demande votre attention.
                 </h1>
 
                 <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-                  DuePilot centralise les obligations critiques de votre
-                  entreprise et vous donne une lecture immédiate des priorités à
-                  traiter.
+                  {lateCount > 0
+                    ? `${lateCount} échéance${lateCount > 1 ? "s" : ""} en retard à traiter en priorité.`
+                    : next7Count > 0
+                      ? `${next7Count} échéance${next7Count > 1 ? "s" : ""} arrive${next7Count > 1 ? "nt" : ""} sous 7 jours.`
+                      : "Aucune urgence immédiate détectée."}
                 </p>
+
+                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                  <Link
+                    href="/deadlines"
+                    className="inline-flex justify-center rounded-2xl bg-blue-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/30 transition hover:-translate-y-0.5 hover:bg-blue-400"
+                  >
+                    Accéder aux échéances
+                  </Link>
+                  <Link
+                    href="/deadlines/new"
+                    className="inline-flex justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-100 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                  >
+                    Ajouter une échéance
+                  </Link>
+                </div>
               </div>
 
               <div className={`rounded-3xl border p-5 ${riskSummary.panelClassName}`}>
@@ -355,11 +381,11 @@ export default async function DashboardPage() {
                     {riskSummary.label}
                   </span>
                   <span className="text-sm font-medium text-slate-300">
-                    Score de suivi
+Santé administrative
                   </span>
                 </div>
 
-                <div className="mt-5 flex items-end gap-2">
+                <div className="mt-5 flex items-end gap-2" aria-label={`Santé administrative ${riskSummary.score} sur 100`}>
                   <p className="text-5xl font-bold tracking-tight text-white">
                     {riskSummary.score}
                   </p>
@@ -377,7 +403,7 @@ export default async function DashboardPage() {
                   {riskSummary.title}
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
-                  {riskSummary.description}
+                  Ce score tient compte des retards, urgences à 7 jours et échéances à anticiper.
                 </p>
               </div>
             </div>
@@ -388,7 +414,7 @@ export default async function DashboardPage() {
           {statCards.map((card) => (
             <div
               key={card.label}
-              className={`rounded-3xl border p-5 shadow-xl shadow-slate-950/20 ${card.className}`}
+              className={`rounded-3xl border p-5 shadow-xl shadow-slate-950/20 transition hover:-translate-y-1 hover:shadow-2xl ${card.className}`}
             >
               <p className="text-sm font-medium text-slate-300">{card.label}</p>
               <p className={`mt-4 text-5xl font-bold ${card.valueClassName}`}>
@@ -402,23 +428,23 @@ export default async function DashboardPage() {
         {total === 0 ? (
           <DeadlineOnboardingEmptyState variant="dashboard" />
         ) : (
-          <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.85fr]">
+          <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.72fr] animate-rise-in-delay-1">
             <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-2xl font-bold text-white">
-                    Priorités administratives
+                    Priorités à traiter
                   </h2>
                   <p className="mt-1 text-sm text-slate-400">
-                    Les échéances qui demandent le plus d’attention.
+                    Les éléments qui méritent une action en premier.
                   </p>
                 </div>
 
                 <Link
-                  href="/deadlines/new"
-                  className="inline-flex justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
+                  href="/deadlines"
+                  className="inline-flex justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-blue-400"
                 >
-                  + Nouvelle échéance
+                  Voir les échéances
                 </Link>
               </div>
 
@@ -428,7 +454,7 @@ export default async function DashboardPage() {
                     <Link
                       key={deadline.id}
                       href={`/deadlines/${deadline.id}`}
-                      className="group block rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-blue-400/40 hover:bg-blue-400/10"
+                      className="group block rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10"
                     >
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div>
@@ -468,7 +494,7 @@ export default async function DashboardPage() {
             <aside className="space-y-6">
               <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-200">
-                  Prochaine échéance
+                  Prochaine action
                 </p>
 
                 {nextCriticalDeadline ? (
@@ -484,6 +510,12 @@ export default async function DashboardPage() {
                     >
                       {nextCriticalDeadline.readableStatus}
                     </span>
+                    <Link
+                      href={`/deadlines/${nextCriticalDeadline.id}`}
+                      className="mt-6 inline-flex w-full justify-center rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-blue-400"
+                    >
+                      Ouvrir le détail
+                    </Link>
                     {nextCriticalDeadline.document ? (
                       <Link
                         href={`/deadlines/documents/${nextCriticalDeadline.document.id}`}
@@ -492,65 +524,8 @@ export default async function DashboardPage() {
                         Voir le PDF joint
                       </Link>
                     ) : null}
-                    <Link
-                      href={`/deadlines/${nextCriticalDeadline.id}`}
-                      className="mt-6 inline-flex w-full justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-blue-400/40 hover:bg-blue-400/10"
-                    >
-                      Ouvrir le détail
-                    </Link>
                   </div>
                 ) : null}
-              </div>
-
-              <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-white">
-                      Prochaines dates
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-400">
-                      Vue rapide du planning.
-                    </p>
-                  </div>
-                  <Link
-                    href="/deadlines"
-                    className="text-sm font-semibold text-blue-200 transition hover:text-white"
-                  >
-                    Tout voir
-                  </Link>
-                </div>
-
-                <div className="mt-5 space-y-4">
-                  {upcomingDeadlines.length > 0 ? (
-                    upcomingDeadlines.map((deadline) => (
-                      <Link
-                        key={deadline.id}
-                        href={`/deadlines/${deadline.id}`}
-                        className="flex items-center justify-between gap-4 border-b border-white/10 pb-4 transition hover:text-blue-100 last:border-0 last:pb-0"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-white">
-                            {deadline.title}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-400">
-                            {deadline.formattedDate}
-                            {deadline.document ? " · PDF" : ""}
-                          </p>
-                        </div>
-                        <span className="shrink-0 text-sm font-semibold text-slate-300">
-                          J{deadline.daysUntilDeadline === 0
-                            ? ""
-                            : `-${deadline.daysUntilDeadline}`}
-                        </span>
-                      </Link>
-                    ))
-                  ) : (
-                    <p className="text-sm text-slate-400">
-                      Aucune échéance à venir. Les échéances visibles sont toutes
-                      en retard ou déjà passées.
-                    </p>
-                  )}
-                </div>
               </div>
 
               <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">

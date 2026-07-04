@@ -322,28 +322,47 @@ export default function RenewDeadlineForm({
   };
 
   return (
-    <section className="mt-6 overflow-hidden rounded-[2rem] border border-emerald-400/20 bg-emerald-400/10 shadow-2xl shadow-emerald-950/10">
-      <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
+    <section className="mt-6 overflow-hidden rounded-[2rem] border border-emerald-400/20 bg-slate-900/85 shadow-2xl shadow-emerald-950/10">
+      <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-start">
         <div>
           <div className="inline-flex rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-100">
-            Action métier
+Action terminée
           </div>
           <h2 className="mt-4 text-2xl font-bold text-white">
-            Marquer cette échéance comme traitée
+Clôturer cette échéance et planifier la suivante
           </h2>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-emerald-50/75">
-            Une fois l’obligation renouvelée, reportez la prochaine date dans
-            DuePilot. Les rappels futurs repartiront automatiquement sur cette
-            nouvelle échéance, tout en conservant l’historique existant.
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
+            À utiliser uniquement lorsque l’obligation est réellement faite : assurance renouvelée, contrôle réalisé, contrat reconduit ou document mis à jour. DuePilot garde la trace de l’action, remplace la date actuelle par la prochaine échéance et relance les rappels sur ce nouveau cycle.
           </p>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-bold text-white">1. Action faite</p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                L’obligation actuelle est considérée comme traitée.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-bold text-white">2. Nouvelle date</p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                Vous indiquez la prochaine échéance à surveiller.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-bold text-white">3. Suivi relancé</p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                Les rappels repartent automatiquement sur le nouveau cycle.
+              </p>
+            </div>
+          </div>
         </div>
 
         <button
           type="button"
           onClick={() => setIsOpen((currentValue) => !currentValue)}
-          className="inline-flex justify-center rounded-2xl bg-emerald-400 px-5 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-300 focus:outline-none focus:ring-4 focus:ring-emerald-300/20"
+          className="inline-flex justify-center rounded-2xl bg-emerald-400 px-5 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-300 focus:outline-none focus:ring-4 focus:ring-emerald-300/20 lg:mt-8"
         >
-          {isOpen ? "Fermer" : "Traiter / renouveler"}
+          {isOpen ? "Fermer" : "J’ai traité cette échéance"}
         </button>
       </div>
 
@@ -352,21 +371,29 @@ export default function RenewDeadlineForm({
           onSubmit={handleSubmit}
           className="border-t border-emerald-300/15 bg-slate-950/35 p-6 sm:p-8"
         >
+          <div className="mb-6 rounded-3xl border border-emerald-300/20 bg-emerald-300/10 p-5">
+            <p className="text-sm font-bold text-emerald-50">
+              Ce n’est pas une modification classique.
+            </p>
+            <p className="mt-2 text-sm leading-6 text-emerald-50/75">
+              Pour corriger le titre, la catégorie, la date actuelle ou les rappels, utilisez “Modifier l’échéance”. Ici, vous confirmez que le cycle actuel est terminé et vous programmez la prochaine date à suivre.
+            </p>
+          </div>
+
           <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
             <div className="space-y-6">
               <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
                 <div className="flex flex-col gap-2 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-white">
-                      Nouvelle échéance
+                      Prochain cycle de suivi
                     </p>
                     <p className="mt-1 max-w-xl text-sm leading-6 text-slate-400">
-                      Indiquez la prochaine date à suivre après traitement ou
-                      renouvellement de l’obligation actuelle.
+                      Renseignez la date à laquelle cette obligation devra être suivie à nouveau.
                     </p>
                   </div>
                   <span className="inline-flex w-fit rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300">
-                    Obligatoire
+                    Date obligatoire
                   </span>
                 </div>
 
@@ -444,7 +471,9 @@ export default function RenewDeadlineForm({
                   disabled={isLoading}
                   className="inline-flex justify-center rounded-2xl bg-emerald-400 px-6 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-300 focus:outline-none focus:ring-4 focus:ring-emerald-300/20 disabled:cursor-not-allowed disabled:bg-emerald-400/50"
                 >
-                  {isLoading ? "Renouvellement..." : "Confirmer le renouvellement"}
+                  {isLoading
+                    ? "Enregistrement..."
+                    : "Clôturer et relancer le suivi"}
                 </button>
               </div>
             </div>
@@ -464,13 +493,13 @@ export default function RenewDeadlineForm({
 
               <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Ce qui sera conservé
+                  Différence avec “Modifier”
                 </p>
                 <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
-                  <li>• Le titre et la catégorie de l’échéance</li>
-                  <li>• Les rappels configurés</li>
-                  <li>• L’historique des notifications</li>
-                  <li>• Le journal d’activité existant</li>
+                  <li>• “Modifier” corrige les informations de l’échéance actuelle</li>
+                  <li>• Cette action confirme que l’échéance actuelle est faite</li>
+                  <li>• La date actuelle est remplacée par la prochaine date à suivre</li>
+                  <li>• Le journal d’activité conserve la trace du renouvellement</li>
                 </ul>
               </div>
             </aside>

@@ -10,6 +10,7 @@ type EditDeadlinePageProps = {
   params: Promise<{
     id: string;
   }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 type Deadline = {
@@ -21,6 +22,19 @@ type Deadline = {
   created_at: string;
   user_id: string | null;
 };
+
+function getSearchParam(
+  params: Record<string, string | string[] | undefined>,
+  key: string
+) {
+  const value = params[key];
+
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return value ?? "";
+}
 
 function formatDate(date: string) {
   const [year, month, day] = date.split("-").map(Number);
@@ -35,8 +49,11 @@ function formatDate(date: string) {
 
 export default async function EditDeadlinePage({
   params,
+  searchParams,
 }: EditDeadlinePageProps) {
   const { id } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const returnTo = getSearchParam(resolvedSearchParams, "returnTo");
   const supabase = await createClient();
 
   const {
@@ -96,16 +113,18 @@ export default async function EditDeadlinePage({
     deadlineId: editableDeadline.id,
   });
   const notificationCount = editableDeadline.notification_days?.length ?? 0;
+  const returnHref = returnTo === "detail" ? `/deadlines/${editableDeadline.id}` : "/deadlines";
+  const returnLabel = returnTo === "detail" ? "Retour à la fiche" : "Retour aux échéances";
 
   return (
     <main className="min-h-screen bg-slate-950 px-5 py-6 text-white sm:px-8 sm:py-8">
       <div className="mx-auto max-w-6xl">
         <Link
-          href="/deadlines"
+          href={returnHref}
           className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
         >
           <span aria-hidden="true">←</span>
-          Retour aux échéances
+          {returnLabel}
         </Link>
 
         <section className="mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.08] via-white/[0.035] to-blue-500/[0.06] p-6 shadow-2xl shadow-slate-950/40 sm:p-8">
@@ -158,6 +177,7 @@ export default async function EditDeadlinePage({
         <EditDeadlineForm
           deadline={editableDeadline}
           document={deadlineDocument}
+          returnHref={returnHref}
         />
       </div>
     </main>

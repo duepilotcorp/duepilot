@@ -479,42 +479,57 @@ export default async function DeadlinesPage({
 
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-10">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Link
-            href="/dashboard"
-            className="inline-flex w-fit items-center gap-2 text-sm font-medium text-blue-200 transition hover:text-white"
-          >
-            <span aria-hidden="true">←</span>
-            Retour au dashboard
+          <Link href="/dashboard" className="group flex w-fit items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-300/25 bg-blue-400/10 shadow-[0_0_40px_rgba(59,130,246,0.18)] transition group-hover:border-blue-200/40 group-hover:bg-blue-400/15">
+              <span className="h-4 w-4 rounded-full bg-blue-300 shadow-[0_0_24px_rgba(147,197,253,0.85)]" />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold tracking-[0.28em] text-blue-100">
+                DUEPILOT
+              </span>
+              <span className="hidden text-xs text-slate-500 sm:block">
+                Registre des échéances
+              </span>
+            </span>
           </Link>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
-              href="/deadlines/new"
-              className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-400"
+              href="/dashboard"
+              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
             >
-              + Nouvelle échéance
+              Dashboard
+            </Link>
+            <Link
+              href="/deadlines/new"
+              className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-950/30 transition hover:-translate-y-0.5 hover:bg-blue-400"
+            >
+              Nouvelle échéance
             </Link>
             <LogoutButton />
           </div>
         </header>
 
-        <section className="mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-blue-950/20 backdrop-blur">
+        <section className="premium-sheen mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-blue-950/20 backdrop-blur animate-rise-in">
           <div className="relative p-6 sm:p-8 lg:p-10">
             <div className="absolute right-0 top-0 h-44 w-44 rounded-full bg-blue-500/20 blur-3xl" />
 
             <div className="relative grid gap-8 lg:grid-cols-[1.35fr_0.85fr] lg:items-end">
               <div>
                 <div className="inline-flex rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-blue-100">
-                  Registre des échéances
+Échéances
                 </div>
 
                 <h1 className="mt-5 max-w-3xl text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
-                  Toutes vos obligations importantes au même endroit.
+                  Votre registre opérationnel.
                 </h1>
 
                 <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-                  Consultez vos assurances, certifications, contrats, habilitations
-                  et contrôles réglementaires avec une lecture claire des priorités.
+                  {lateCount > 0
+                    ? `${lateCount} échéance${lateCount > 1 ? "s" : ""} en retard à régulariser.`
+                    : next7Count > 0
+                      ? `${next7Count} échéance${next7Count > 1 ? "s" : ""} à traiter sous 7 jours.`
+                      : "Aucune échéance critique immédiate."}
                 </p>
 
                 <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-300">
@@ -541,7 +556,9 @@ export default async function DeadlinesPage({
                   {insight.title}
                 </h2>
                 <p className="mt-3 text-sm leading-6 text-slate-200/80">
-                  {insight.description}
+                  {lateCount > 0
+                    ? "Commencez par les éléments en retard, puis les échéances à 7 jours."
+                    : "Utilisez les filtres pour isoler les priorités, documents et catégories sensibles."}
                 </p>
 
                 {nextDeadline ? (
@@ -566,7 +583,7 @@ export default async function DeadlinesPage({
           {statCards.map((card) => (
             <div
               key={card.label}
-              className={`rounded-3xl border p-5 shadow-xl shadow-slate-950/20 ${card.className}`}
+              className={`rounded-3xl border p-5 shadow-xl shadow-slate-950/20 transition hover:-translate-y-1 hover:shadow-2xl ${card.className}`}
             >
               <p className="text-sm font-medium text-slate-300">{card.label}</p>
               <p className={`mt-4 text-5xl font-bold ${card.valueClassName}`}>
@@ -577,7 +594,7 @@ export default async function DeadlinesPage({
           ))}
         </section>
 
-        <section className="mt-6 rounded-[2rem] border border-white/10 bg-slate-900/80 shadow-2xl shadow-slate-950/20">
+        <section className="mt-6 rounded-[2rem] border border-white/10 bg-slate-900/80 shadow-2xl shadow-slate-950/20 animate-rise-in-delay-1">
           <div className="border-b border-white/10 p-5 sm:p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -585,8 +602,7 @@ export default async function DeadlinesPage({
                   Liste des échéances
                 </h2>
                 <p className="mt-1 text-sm text-slate-400">
-                  Recherchez, filtrez et triez vos obligations sans perdre la
-                  vision globale de votre registre.
+                  {filteredCount} résultat{filteredCount > 1 ? "s" : ""} affiché{filteredCount > 1 ? "s" : ""} sur {total}.
                 </p>
               </div>
 
@@ -720,8 +736,8 @@ export default async function DeadlinesPage({
 
               {filteredCount === 0 ? (
                 <div className="p-8 text-center sm:p-12">
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-2xl">
-                    ⌕
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                    <span className="h-3 w-3 rounded-full bg-blue-300 shadow-[0_0_24px_rgba(147,197,253,0.85)]" />
                   </div>
                   <h3 className="mt-6 text-2xl font-bold text-white">
                     Aucun résultat trouvé
@@ -756,7 +772,7 @@ export default async function DeadlinesPage({
                         {filteredDeadlines.map((deadline) => (
                           <tr
                             key={deadline.id}
-                            className="group transition hover:bg-white/[0.03]"
+                            className="group transition hover:bg-white/[0.045]"
                           >
                             <td className="px-6 py-5">
                               <div className="flex items-start gap-4">
@@ -766,7 +782,7 @@ export default async function DeadlinesPage({
                                 <div className="min-w-0">
                                   <Link
                                     href={`/deadlines/${deadline.id}`}
-                                    className="block truncate font-semibold text-white transition hover:text-blue-100"
+                                    className="block truncate font-semibold text-white transition group-hover:text-blue-100"
                                   >
                                     {deadline.title}
                                   </Link>
@@ -835,7 +851,7 @@ export default async function DeadlinesPage({
                     {filteredDeadlines.map((deadline) => (
                       <article
                         key={deadline.id}
-                        className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 shadow-xl shadow-slate-950/20"
+                        className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 shadow-xl shadow-slate-950/20 transition hover:-translate-y-0.5 hover:border-blue-400/30 hover:bg-white/[0.05]"
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div className="min-w-0">

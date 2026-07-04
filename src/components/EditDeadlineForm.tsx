@@ -45,6 +45,7 @@ type Deadline = {
 type EditDeadlineFormProps = {
   deadline: Deadline;
   document?: DeadlineDocument | null;
+  returnHref?: string;
 };
 
 function parseLocalDate(date: string) {
@@ -151,6 +152,7 @@ function getReminderPreview(days: number[]) {
 export default function EditDeadlineForm({
   deadline,
   document = null,
+  returnHref = "/deadlines",
 }: EditDeadlineFormProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -379,7 +381,7 @@ export default function EditDeadlineForm({
       await createActivityLogs(activityLogs);
     }
 
-    router.push("/deadlines");
+    router.push(returnHref);
     router.refresh();
   };
 
@@ -516,7 +518,7 @@ export default function EditDeadlineForm({
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link
-            href="/deadlines"
+            href={returnHref}
             className="inline-flex justify-center rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:bg-white/[0.04] hover:text-white"
           >
             Annuler
