@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import DeleteDeadlineButton from "@/components/DeleteDeadlineButton";
+import RenewDeadlineForm from "@/components/RenewDeadlineForm";
 import { getActivityLogTone, getDeadlineActivityLogs } from "@/lib/activity-logs";
 import { formatFileSize } from "@/lib/deadline-documents";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
@@ -405,6 +406,17 @@ export default async function DeadlineDetailPage({
             </div>
           ))}
         </section>
+
+        <RenewDeadlineForm
+          deadline={{
+            id: typedDeadline.id,
+            title: typedDeadline.title,
+            category: typedDeadline.category,
+            due_date: typedDeadline.due_date,
+            notification_days: typedDeadline.notification_days,
+          }}
+          document={document}
+        />
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.9fr]">
           <div className="space-y-6">

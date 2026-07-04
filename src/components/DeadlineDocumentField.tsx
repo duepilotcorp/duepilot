@@ -14,6 +14,9 @@ type DeadlineDocumentFieldProps = {
   shouldRemoveExistingDocument?: boolean;
   onShouldRemoveExistingDocumentChange?: (shouldRemove: boolean) => void;
   disabled?: boolean;
+  stepLabel?: string;
+  description?: string;
+  emptyDescription?: string;
 };
 
 export default function DeadlineDocumentField({
@@ -23,6 +26,9 @@ export default function DeadlineDocumentField({
   shouldRemoveExistingDocument = false,
   onShouldRemoveExistingDocumentChange,
   disabled = false,
+  stepLabel = "Étape 2/3",
+  description = "Joignez l’attestation, le contrat, le certificat ou le rapport PDF lié à cette échéance.",
+  emptyDescription = "L’échéance peut être créée sans document. Vous pourrez en ajouter un plus tard depuis la page d’édition.",
 }: DeadlineDocumentFieldProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [localError, setLocalError] = useState("");
@@ -78,13 +84,12 @@ export default function DeadlineDocumentField({
         <div>
           <p className="text-sm font-semibold text-white">Document associé</p>
           <p className="mt-1 max-w-xl text-sm leading-6 text-slate-400">
-            Joignez l’attestation, le contrat, le certificat ou le rapport PDF
-            lié à cette échéance.
+            {description}
           </p>
         </div>
 
         <span className="inline-flex w-fit rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300">
-          Étape 2/3
+          {stepLabel}
         </span>
       </div>
 
@@ -196,8 +201,7 @@ export default function DeadlineDocumentField({
                 Aucun document attaché
               </p>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                L’échéance peut être créée sans document. Vous pourrez en
-                ajouter un plus tard depuis la page d’édition.
+                {emptyDescription}
               </p>
             </div>
           )}

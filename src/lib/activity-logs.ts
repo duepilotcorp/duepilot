@@ -11,6 +11,7 @@ export type ActivityLogAction =
   | "deadline.category_updated"
   | "deadline.due_date_updated"
   | "deadline.reminders_updated"
+  | "deadline.renewed"
   | "document.added"
   | "document.replaced"
   | "document.removed"
@@ -133,6 +134,10 @@ export function getActivityLogTone(action: string) {
   }
 
   if (action.startsWith("notification.")) {
+    return "border-emerald-400/20 bg-emerald-400/10 text-emerald-100";
+  }
+
+  if (action === "deadline.renewed") {
     return "border-emerald-400/20 bg-emerald-400/10 text-emerald-100";
   }
 
