@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const BETA_ACCESS_ADMIN_EMAIL = "duepilotcorp@gmail.com";
+
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request,
@@ -38,13 +40,24 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isAuthPage = pathname === "/login" || pathname === "/register";
+  const isAdminPage = pathname.startsWith("/admin");
   const isProtectedPage =
-    pathname.startsWith("/dashboard") || pathname.startsWith("/deadlines");
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/deadlines") ||
+    isAdminPage;
 
   if (!user && isProtectedPage) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("redirectedFrom", pathname);
+
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (user && isAdminPage && user.email?.toLowerCase() !== BETA_ACCESS_ADMIN_EMAIL) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/dashboard";
+    redirectUrl.search = "";
 
     return NextResponse.redirect(redirectUrl);
   }

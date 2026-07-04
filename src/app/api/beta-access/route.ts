@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -69,6 +70,27 @@ export async function POST(request: Request) {
     return Response.json(
       { error: "L’adresse email renseignée ne semble pas valide." },
       { status: 400 }
+    );
+  }
+
+  const { error: insertError } = await supabaseAdmin
+    .from("beta_access_requests")
+    .insert({
+      full_name: fullName,
+      email,
+      company,
+      role,
+      deadline_volume: deadlineVolume,
+      message: message || null,
+      status: "new",
+    });
+
+  if (insertError) {
+    console.error(insertError);
+
+    return Response.json(
+      { error: "Impossible d’enregistrer la demande pour le moment." },
+      { status: 500 }
     );
   }
 

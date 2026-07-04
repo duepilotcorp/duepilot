@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import DeadlineOnboardingEmptyState from "@/components/DeadlineOnboardingEmptyState";
 import LogoutButton from "@/components/LogoutButton";
 import { getDeadlineDocumentsByDeadlineId } from "@/lib/deadline-documents-server";
+import { isBetaAccessAdmin } from "@/lib/beta-access-admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -233,6 +234,7 @@ export default async function DashboardPage() {
     (deadline) => deadline.daysUntilDeadline > 30
   ).length;
   const documentCount = enrichedDeadlines.filter((deadline) => deadline.document).length;
+  const isAdminUser = isBetaAccessAdmin(user.email);
 
   const urgentDeadlines = enrichedDeadlines
     .filter((deadline) => deadline.daysUntilDeadline <= 30)
@@ -327,6 +329,14 @@ export default async function DashboardPage() {
             >
               Nouvelle échéance
             </Link>
+            {isAdminUser ? (
+              <Link
+                href="/admin/beta-requests"
+                className="inline-flex justify-center rounded-xl border border-purple-300/20 bg-purple-400/10 px-4 py-2 text-sm font-semibold text-purple-100 transition hover:-translate-y-0.5 hover:border-purple-300/40 hover:bg-purple-400/15 hover:text-white"
+              >
+                Admin beta
+              </Link>
+            ) : null}
             <LogoutButton />
           </div>
         </header>
