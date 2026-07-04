@@ -1,0 +1,321 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getDeadlineDocumentsByDeadlineId } from "@/lib/deadline-documents-server";
+import { formatFileSize } from "@/lib/deadline-documents";
+import { createClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
+
+type Deadline = {
+  id: number;
+  title: string;
+  category: string | null;
+  due_date: string;
+  notification_days: number[] | null;
+  created_at: string;
+  user_id: string | null;
+};
+
+type EnrichedDeadline = Deadline & {
+  categoryLabel: string;
+  daysUntilDeadline: number;
+  formattedDate: string;
+  readableStatus: string;
+  priorityLabel: string;
+  remindersLabel: string;
+  documentFileName: string;
+  documentFileSize: string;
+};
+
+type StatusFilter = "all" | "late" | "today" | "next7" | "next30" | "safe";
+type SortOption = "due_asc" | "due_desc" | "title_asc" | "created_desc";
+
+const DAY_IN_MS = 1000 * 60 * 60 * 24;
+
+const STATUS_FILTERS: StatusFilter[] = [
+  "all",
+  "late",
+  "today",
+  "next7",
+  "next30",
+  "safe",
+];
+const SORT_OPTIONS: SortOption[] = [
+  "due_asc",
+  "due_desc",
+  "title_asc",
+  "created_desc",
+];
+
+function getTodayAtMidnight() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+function parseLocalDate(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    const fallbackDate = new Date(date);
+    fallbackDate.setHours(0, 0, 0, 0);
+    return fallbackDate;
+  }
+
+  return new Date(year, month - 1, day);
+}
+
+function getDaysUntilDeadline(dueDate: string, today: Date) {
+  const deadlineDate = parseLocalDate(dueDate);
+  return Math.ceil((deadlineDate.getTime() - today.getTime()) / DAY_IN_MS);
+}
+
+function formatDeadlineDate(dueDate: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(parseLocalDate(dueDate));
+}
+
+function formatDateTime(date: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(date));
+}
+
+function getReadableStatus(daysUntilDeadline: number) {
+  if (daysUntilDeadline < 0) {
+    const daysLate = Math.abs(daysUntilDeadline);
+    return `En retard de ${daysLate} jour${daysLate > 1 ? "s" : ""}`;
+  }
+
+  if (daysUntilDeadline === 0) return "À traiter aujourd’hui";
+  if (daysUntilDeadline === 1) return "À traiter demain";
+
+  return `Dans ${daysUntilDeadline} jours`;
+}
+
+function getPriorityLabel(daysUntilDeadline: number) {
+  if (daysUntilDeadline < 0) return "Action immédiate";
+  if (daysUntilDeadline === 0) return "À faire aujourd’hui";
+  if (daysUntilDeadline <= 7) return "Très proche";
+  if (daysUntilDeadline <= 30) return "À anticiper";
+  return "Sous contrôle";
+}
+
+function formatReminder(day: number) {
+  if (day === 0) return "Jour J";
+  return `J-${day}`;
+}
+
+function normalizeNotificationDays(days: number[] | null) {
+  if (!Array.isArray(days)) return [];
+
+  return [...new Set(days)]
+    .filter((day) => Number.isInteger(day) && day >= 0)
+    .sort((firstDay, secondDay) => secondDay - firstDay);
+}
+
+function getStatusFilter(value: string | null): StatusFilter {
+  return STATUS_FILTERS.includes(value as StatusFilter)
+    ? (value as StatusFilter)
+    : "all";
+}
+
+function getSortOption(value: string | null): SortOption {
+  return SORT_OPTIONS.includes(value as SortOption)
+    ? (value as SortOption)
+    : "due_asc";
+}
+
+function matchesStatusFilter(deadline: EnrichedDeadline, status: StatusFilter) {
+  if (status === "late") return deadline.daysUntilDeadline < 0;
+  if (status === "today") return deadline.daysUntilDeadline === 0;
+  if (status === "next7") {
+    return deadline.daysUntilDeadline >= 0 && deadline.daysUntilDeadline <= 7;
+  }
+  if (status === "next30") {
+    return deadline.daysUntilDeadline >= 0 && deadline.daysUntilDeadline <= 30;
+  }
+  if (status === "safe") return deadline.daysUntilDeadline > 30;
+
+  return true;
+}
+
+function sortDeadlines(deadlines: EnrichedDeadline[], sort: SortOption) {
+  return [...deadlines].sort((firstDeadline, secondDeadline) => {
+    if (sort === "due_desc") {
+      return (
+        parseLocalDate(secondDeadline.due_date).getTime() -
+        parseLocalDate(firstDeadline.due_date).getTime()
+      );
+    }
+
+    if (sort === "title_asc") {
+      return firstDeadline.title.localeCompare(secondDeadline.title, "fr", {
+        sensitivity: "base",
+      });
+    }
+
+    if (sort === "created_desc") {
+      return (
+        new Date(secondDeadline.created_at).getTime() -
+        new Date(firstDeadline.created_at).getTime()
+      );
+    }
+
+    return (
+      parseLocalDate(firstDeadline.due_date).getTime() -
+      parseLocalDate(secondDeadline.due_date).getTime()
+    );
+  });
+}
+
+function csvCell(value: string | number | null | undefined) {
+  const normalizedValue = String(value ?? "").replace(/\r?\n|\r/g, " ").trim();
+  return `"${normalizedValue.replace(/"/g, '""')}"`;
+}
+
+function buildCsv(deadlines: EnrichedDeadline[]) {
+  const headers = [
+    "Titre",
+    "Catégorie",
+    "Date d’échéance",
+    "Statut",
+    "Priorité",
+    "Rappels",
+    "Document associé",
+    "Nom du document",
+    "Taille du document",
+    "Créée le",
+  ];
+
+  const rows = deadlines.map((deadline) => [
+    deadline.title,
+    deadline.categoryLabel,
+    deadline.formattedDate,
+    deadline.readableStatus,
+    deadline.priorityLabel,
+    deadline.remindersLabel,
+    deadline.documentFileName ? "Oui" : "Non",
+    deadline.documentFileName,
+    deadline.documentFileSize,
+    formatDateTime(deadline.created_at),
+  ]);
+
+  return [headers, ...rows]
+    .map((row) => row.map(csvCell).join(";"))
+    .join("\r\n");
+}
+
+function buildExportFileName() {
+  const date = new Date().toISOString().slice(0, 10);
+  return `duepilot-echeances-${date}.csv`;
+}
+
+export async function GET(request: NextRequest) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const searchParams = request.nextUrl.searchParams;
+  const rawSearchQuery = searchParams.get("q") ?? "";
+  const searchQuery = rawSearchQuery.trim().slice(0, 80);
+  const normalizedSearchQuery = searchQuery.toLocaleLowerCase("fr-FR");
+  const statusFilter = getStatusFilter(searchParams.get("status"));
+  const categoryFilter = searchParams.get("category") || "all";
+  const sortOption = getSortOption(searchParams.get("sort"));
+
+  const { data: deadlines, error } = await supabase
+    .from("deadlines")
+    .select("id, title, category, due_date, notification_days, created_at, user_id")
+    .eq("user_id", user.id)
+    .order("due_date", { ascending: true })
+    .returns<Deadline[]>();
+
+  if (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: "Unable to export deadlines" },
+      { status: 500 }
+    );
+  }
+
+  const today = getTodayAtMidnight();
+  const deadlineList = deadlines ?? [];
+  const documentsByDeadlineId = await getDeadlineDocumentsByDeadlineId({
+    supabase,
+    userId: user.id,
+    deadlineIds: deadlineList.map((deadline) => deadline.id),
+  });
+
+  const enrichedDeadlines: EnrichedDeadline[] = deadlineList.map((deadline) => {
+    const daysUntilDeadline = getDaysUntilDeadline(deadline.due_date, today);
+    const document = documentsByDeadlineId.get(deadline.id) ?? null;
+    const reminders = normalizeNotificationDays(deadline.notification_days);
+
+    return {
+      ...deadline,
+      categoryLabel: deadline.category?.trim() || "Sans catégorie",
+      daysUntilDeadline,
+      formattedDate: formatDeadlineDate(deadline.due_date),
+      readableStatus: getReadableStatus(daysUntilDeadline),
+      priorityLabel: getPriorityLabel(daysUntilDeadline),
+      remindersLabel:
+        reminders.length > 0 ? reminders.map(formatReminder).join(", ") : "Aucun rappel",
+      documentFileName: document?.file_name ?? "",
+      documentFileSize: document ? formatFileSize(document.file_size) : "",
+    };
+  });
+
+  const filteredDeadlines = sortDeadlines(
+    enrichedDeadlines.filter((deadline) => {
+      const searchableContent = [
+        deadline.title,
+        deadline.categoryLabel,
+        deadline.formattedDate,
+        deadline.readableStatus,
+        deadline.priorityLabel,
+        deadline.remindersLabel,
+        deadline.documentFileName,
+      ]
+        .join(" ")
+        .toLocaleLowerCase("fr-FR");
+
+      const matchesSearch = normalizedSearchQuery
+        ? searchableContent.includes(normalizedSearchQuery)
+        : true;
+      const matchesCategory =
+        categoryFilter === "all" || deadline.categoryLabel === categoryFilter;
+
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesStatusFilter(deadline, statusFilter)
+      );
+    }),
+    sortOption
+  );
+
+  const csv = `\uFEFF${buildCsv(filteredDeadlines)}\r\n`;
+  const fileName = buildExportFileName();
+
+  return new NextResponse(csv, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${fileName}"`,
+      "Cache-Control": "no-store",
+    },
+  });
+}

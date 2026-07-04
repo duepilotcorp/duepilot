@@ -125,3 +125,14 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+@media print {
+  @page {
+    margin: 16mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+}

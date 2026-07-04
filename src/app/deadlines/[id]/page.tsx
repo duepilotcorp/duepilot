@@ -338,6 +338,12 @@ export default async function DeadlineDetailPage({
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
+              href={`/deadlines/${typedDeadline.id}/report`}
+              className="inline-flex justify-center rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300/40 hover:bg-emerald-400/15 hover:text-white"
+            >
+              Rapport PDF
+            </Link>
+            <Link
               href={`/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
               className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
             >

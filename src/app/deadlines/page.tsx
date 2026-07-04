@@ -438,6 +438,17 @@ export default async function DeadlinesPage({
     categoryFilter: safeCategoryFilter,
   });
   const hasActiveFilters = activeFilters.length > 0 || sortOption !== "due_asc";
+  const exportParams = new URLSearchParams();
+
+  if (searchQuery) exportParams.set("q", searchQuery);
+  if (statusFilter !== "all") exportParams.set("status", statusFilter);
+  if (safeCategoryFilter !== "all") exportParams.set("category", safeCategoryFilter);
+  if (sortOption !== "due_asc") exportParams.set("sort", sortOption);
+
+  const exportQueryString = exportParams.toString();
+  const csvExportHref = `/api/deadlines/export${
+    exportQueryString ? `?${exportQueryString}` : ""
+  }`;
 
   const statCards = [
     {
@@ -500,6 +511,12 @@ export default async function DeadlinesPage({
             >
               Dashboard
             </Link>
+            <a
+              href={csvExportHref}
+              className="inline-flex justify-center rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:-translate-y-0.5 hover:border-emerald-300/40 hover:bg-emerald-400/15 hover:text-white"
+            >
+              Export CSV
+            </a>
             <Link
               href="/deadlines/new"
               className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-950/30 transition hover:-translate-y-0.5 hover:bg-blue-400"
