@@ -12,6 +12,10 @@ import {
   saveDeadlineDocument,
 } from "@/lib/deadline-document-actions";
 import type { DeadlineDocument } from "@/lib/deadline-documents";
+import {
+  createRenewalHistory,
+  type RenewalDocumentAction,
+} from "@/lib/renewal-history";
 import { createClient } from "@/lib/supabase/client";
 
 type DeadlineForRenewal = {
@@ -220,6 +224,8 @@ export default function RenewDeadlineForm({
       return;
     }
 
+    let newDocumentFilePath: string | null = null;
+
     if (selectedDocumentFile) {
       const documentResult = await saveDeadlineDocument({
         supabase,
@@ -234,6 +240,8 @@ export default function RenewDeadlineForm({
         setIsLoading(false);
         return;
       }
+
+      newDocumentFilePath = documentResult.filePath ?? null;
     } else if (shouldRemoveDocument && document) {
       const deleteResult = await deleteDeadlineDocument({
         supabase,
@@ -314,6 +322,49 @@ export default function RenewDeadlineForm({
     }
 
     await createActivityLogs(activityLogs);
+
+    const documentAction: RenewalDocumentAction = selectedDocumentFile
+      ? document
+        ? "replaced"
+        : "added"
+      : shouldRemoveDocument && document
+        ? "removed"
+        : document
+          ? "kept"
+          : "none";
+
+    await createRenewalHistory({
+      supabase,
+      userId: user.id,
+      deadlineId: deadline.id,
+      deadlineTitle: deadline.title,
+      deadlineCategory: deadline.category,
+      previousDueDate: deadline.due_date,
+      newDueDate: renewalDate,
+      previousDocumentFileName: document?.file_name ?? null,
+      previousDocumentFileSize: document?.file_size ?? null,
+      previousDocumentFilePath: document?.file_path ?? null,
+      newDocumentFileName: selectedDocumentFile
+        ? selectedDocumentFile.name
+        : shouldRemoveDocument
+          ? null
+          : document?.file_name ?? null,
+      newDocumentFileSize: selectedDocumentFile
+        ? selectedDocumentFile.size
+        : shouldRemoveDocument
+          ? null
+          : document?.file_size ?? null,
+      newDocumentFilePath: selectedDocumentFile
+        ? newDocumentFilePath
+        : shouldRemoveDocument
+          ? null
+          : document?.file_path ?? null,
+      documentAction,
+      reminders: normalizedNotificationDays,
+      metadata: {
+        source: "renewal_flow",
+      },
+    });
 
     resetForm();
     setIsOpen(false);

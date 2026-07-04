@@ -3,9 +3,11 @@ import { notFound, redirect } from "next/navigation";
 import ActivityLogList from "@/components/ActivityLogList";
 import DeleteDeadlineButton from "@/components/DeleteDeadlineButton";
 import RenewDeadlineForm from "@/components/RenewDeadlineForm";
+import RenewalHistoryList from "@/components/RenewalHistoryList";
 import { getDeadlineActivityLogs } from "@/lib/activity-logs";
 import { formatFileSize } from "@/lib/deadline-documents";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
+import { getDeadlineRenewalHistory } from "@/lib/renewal-history";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -278,6 +280,12 @@ export default async function DeadlineDetailPage({
     userId: user.id,
     deadlineId: typedDeadline.id,
     limit: 40,
+  });
+  const renewalHistory = await getDeadlineRenewalHistory({
+    supabase,
+    userId: user.id,
+    deadlineId: typedDeadline.id,
+    limit: 30,
   });
 
   const formattedDueDate = formatDeadlineDate(typedDeadline.due_date);
@@ -618,6 +626,28 @@ Fiche échéance
             </section>
 
           </aside>
+        </section>
+
+        <section className="mt-6 rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20 sm:p-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white">
+                Historique des renouvellements
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
+                Les cycles clôturés restent archivés avec l’ancienne date, la
+                nouvelle échéance et le document concerné.
+              </p>
+            </div>
+            <span className="inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+              {renewalHistory.length} renouvellement
+              {renewalHistory.length > 1 ? "s" : ""}
+            </span>
+          </div>
+
+          <div className="mt-6">
+            <RenewalHistoryList renewals={renewalHistory} />
+          </div>
         </section>
 
         <RenewDeadlineForm
