@@ -98,6 +98,23 @@ body {
   width: 28%;
 }
 
+
+
+@keyframes duepilot-float-slow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(-10px, 12px, 0);
+  }
+}
+
+.animate-float-slow {
+  animation: duepilot-float-slow 10s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
