@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import DeadlineOnboardingEmptyState from "@/components/DeadlineOnboardingEmptyState";
 import LogoutButton from "@/components/LogoutButton";
+import { getDeadlineDocumentsByDeadlineId } from "@/lib/deadline-documents-server";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -194,6 +195,11 @@ export default async function DashboardPage() {
 
   const deadlineList = deadlines ?? [];
   const today = getTodayAtMidnight();
+  const documentsByDeadlineId = await getDeadlineDocumentsByDeadlineId({
+    supabase,
+    userId: user.id,
+    deadlineIds: deadlineList.map((deadline) => deadline.id),
+  });
 
   const enrichedDeadlines = deadlineList.map((deadline) => {
     const daysUntilDeadline = getDaysUntilDeadline(deadline.due_date, today);
@@ -204,6 +210,7 @@ export default async function DashboardPage() {
       readableStatus: getReadableStatus(daysUntilDeadline),
       statusClassName: getStatusClassName(daysUntilDeadline),
       formattedDate: formatDeadlineDate(deadline.due_date),
+      document: documentsByDeadlineId.get(deadline.id) ?? null,
     };
   });
 
@@ -225,6 +232,7 @@ export default async function DashboardPage() {
   const safeCount = enrichedDeadlines.filter(
     (deadline) => deadline.daysUntilDeadline > 30
   ).length;
+  const documentCount = enrichedDeadlines.filter((deadline) => deadline.document).length;
 
   const urgentDeadlines = enrichedDeadlines
     .filter((deadline) => deadline.daysUntilDeadline <= 30)
@@ -280,7 +288,7 @@ export default async function DashboardPage() {
     {
       label: "Total suivies",
       value: total,
-      helper: `${safeCount} échéance${safeCount > 1 ? "s" : ""} sous contrôle`,
+      helper: `${documentCount} document${documentCount > 1 ? "s" : ""} associé${documentCount > 1 ? "s" : ""}`,
       className: "border-emerald-500/20 bg-emerald-500/10",
       valueClassName: "text-emerald-100",
     },
@@ -430,6 +438,11 @@ export default async function DashboardPage() {
                           <p className="mt-1 text-sm text-slate-400">
                             {deadline.category} · {deadline.formattedDate}
                           </p>
+                          {deadline.document ? (
+                            <span className="mt-2 inline-flex rounded-full border border-blue-400/20 bg-blue-400/10 px-2.5 py-1 text-xs font-semibold text-blue-100">
+                              PDF joint
+                            </span>
+                          ) : null}
                         </div>
                         <span
                           className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold ${deadline.statusClassName}`}
@@ -471,6 +484,14 @@ export default async function DashboardPage() {
                     >
                       {nextCriticalDeadline.readableStatus}
                     </span>
+                    {nextCriticalDeadline.document ? (
+                      <Link
+                        href={`/deadlines/documents/${nextCriticalDeadline.document.id}`}
+                        className="mt-3 inline-flex w-full justify-center rounded-xl border border-blue-400/20 bg-blue-400/10 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white"
+                      >
+                        Voir le PDF joint
+                      </Link>
+                    ) : null}
                     <Link
                       href={`/deadlines/edit/${nextCriticalDeadline.id}`}
                       className="mt-6 inline-flex w-full justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-blue-400/40 hover:bg-blue-400/10"
@@ -512,6 +533,7 @@ export default async function DashboardPage() {
                           </p>
                           <p className="mt-1 text-sm text-slate-400">
                             {deadline.formattedDate}
+                            {deadline.document ? " · PDF" : ""}
                           </p>
                         </div>
                         <span className="shrink-0 text-sm font-semibold text-slate-300">

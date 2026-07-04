@@ -2,13 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { DEADLINE_DOCUMENTS_BUCKET } from "@/lib/deadline-documents";
 import { createClient } from "@/lib/supabase/client";
 
 type DeleteDeadlineButtonProps = {
   id: number;
+  documentFilePath?: string | null;
 };
 
-export default function DeleteDeadlineButton({ id }: DeleteDeadlineButtonProps) {
+export default function DeleteDeadlineButton({
+  id,
+  documentFilePath,
+}: DeleteDeadlineButtonProps) {
   const router = useRouter();
   const supabase = createClient();
 
@@ -43,6 +48,16 @@ export default function DeleteDeadlineButton({ id }: DeleteDeadlineButtonProps) 
       alert("Impossible de supprimer cette échéance pour le moment.");
       setIsDeleting(false);
       return;
+    }
+
+    if (documentFilePath) {
+      const { error: storageError } = await supabase.storage
+        .from(DEADLINE_DOCUMENTS_BUCKET)
+        .remove([documentFilePath]);
+
+      if (storageError) {
+        console.warn(storageError);
+      }
     }
 
     router.refresh();

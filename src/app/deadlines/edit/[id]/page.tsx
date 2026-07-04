@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import EditDeadlineForm from "@/components/EditDeadlineForm";
+import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +90,11 @@ export default async function EditDeadlinePage({
   }
 
   const editableDeadline = deadline as Deadline;
+  const deadlineDocument = await getDeadlineDocumentByDeadlineId({
+    supabase,
+    userId: user.id,
+    deadlineId: editableDeadline.id,
+  });
   const notificationCount = editableDeadline.notification_days?.length ?? 0;
 
   return (
@@ -139,12 +145,20 @@ export default async function EditDeadlinePage({
                       } configuré${notificationCount === 1 ? "" : "s"}`
                     : "Rappels par défaut"}
                 </p>
+                <p>
+                  {deadlineDocument
+                    ? `Document : ${deadlineDocument.file_name}`
+                    : "Aucun document attaché"}
+                </p>
               </div>
             </div>
           </div>
         </section>
 
-        <EditDeadlineForm deadline={editableDeadline} />
+        <EditDeadlineForm
+          deadline={editableDeadline}
+          document={deadlineDocument}
+        />
       </div>
     </main>
   );

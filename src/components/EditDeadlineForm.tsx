@@ -3,10 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
+import DeadlineDocumentField from "@/components/DeadlineDocumentField";
 import NotificationDaysSelector, {
   DEFAULT_NOTIFICATION_DAYS,
   normalizeNotificationDays,
 } from "@/components/NotificationDaysSelector";
+import {
+  deleteDeadlineDocument,
+  saveDeadlineDocument,
+} from "@/lib/deadline-document-actions";
+import type { DeadlineDocument } from "@/lib/deadline-documents";
 import { createClient } from "@/lib/supabase/client";
 
 const CATEGORY_SUGGESTIONS = [
@@ -37,6 +43,7 @@ type Deadline = {
 
 type EditDeadlineFormProps = {
   deadline: Deadline;
+  document?: DeadlineDocument | null;
 };
 
 function parseLocalDate(date: string) {
@@ -140,7 +147,10 @@ function getReminderPreview(days: number[]) {
     .join(" · ");
 }
 
-export default function EditDeadlineForm({ deadline }: EditDeadlineFormProps) {
+export default function EditDeadlineForm({
+  deadline,
+  document = null,
+}: EditDeadlineFormProps) {
   const router = useRouter();
   const supabase = createClient();
 
@@ -160,6 +170,10 @@ export default function EditDeadlineForm({ deadline }: EditDeadlineFormProps) {
   const [notificationDays, setNotificationDays] = useState<number[]>(
     initialNotificationDays
   );
+  const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(
+    null
+  );
+  const [shouldRemoveDocument, setShouldRemoveDocument] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -171,12 +185,15 @@ export default function EditDeadlineForm({ deadline }: EditDeadlineFormProps) {
   const deadlinePreviewTitle = title.trim() || "Échéance sans nom";
   const deadlinePreviewCategory = category.trim() || "Catégorie non définie";
 
+  const hasDocumentChanges = Boolean(selectedDocumentFile) || shouldRemoveDocument;
+
   const hasChanges =
     title.trim() !== deadline.title ||
     category.trim() !== deadline.category ||
     dueDate !== deadline.due_date ||
     JSON.stringify(normalizedNotificationDays) !==
-      JSON.stringify(initialNotificationDays);
+      JSON.stringify(initialNotificationDays) ||
+    hasDocumentChanges;
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -230,6 +247,35 @@ export default function EditDeadlineForm({ deadline }: EditDeadlineFormProps) {
       return;
     }
 
+    if (selectedDocumentFile) {
+      const documentResult = await saveDeadlineDocument({
+        supabase,
+        userId: user.id,
+        deadlineId: deadline.id,
+        file: selectedDocumentFile,
+        previousFilePath: document?.file_path,
+      });
+
+      if (documentResult.errorMessage) {
+        setErrorMessage(documentResult.errorMessage);
+        setIsLoading(false);
+        return;
+      }
+    } else if (shouldRemoveDocument && document) {
+      const documentResult = await deleteDeadlineDocument({
+        supabase,
+        userId: user.id,
+        deadlineId: deadline.id,
+        filePath: document.file_path,
+      });
+
+      if (documentResult.errorMessage) {
+        setErrorMessage(documentResult.errorMessage);
+        setIsLoading(false);
+        return;
+      }
+    }
+
     router.push("/deadlines");
     router.refresh();
   };
@@ -249,7 +295,7 @@ export default function EditDeadlineForm({ deadline }: EditDeadlineFormProps) {
               </p>
             </div>
             <span className="inline-flex w-fit rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300">
-              Étape 1/2
+              Étape 1/3
             </span>
           </div>
 
@@ -340,10 +386,20 @@ export default function EditDeadlineForm({ deadline }: EditDeadlineFormProps) {
           </div>
         </section>
 
+        <DeadlineDocumentField
+          selectedFile={selectedDocumentFile}
+          onSelectedFileChange={setSelectedDocumentFile}
+          existingDocument={document}
+          shouldRemoveExistingDocument={shouldRemoveDocument}
+          onShouldRemoveExistingDocumentChange={setShouldRemoveDocument}
+          disabled={isLoading}
+        />
+
         <NotificationDaysSelector
           selectedDays={notificationDays}
           onChange={setNotificationDays}
           disabled={isLoading}
+          stepLabel="Étape 3/3"
         />
 
         {errorMessage && (
@@ -419,6 +475,19 @@ export default function EditDeadlineForm({ deadline }: EditDeadlineFormProps) {
               </p>
               <p className="mt-1 text-slate-300">
                 {getReminderPreview(normalizedNotificationDays)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-600">
+                Document
+              </p>
+              <p className="mt-1 break-words text-slate-300">
+                {selectedDocumentFile
+                  ? selectedDocumentFile.name
+                  : shouldRemoveDocument
+                    ? "Suppression prévue"
+                    : document?.file_name ?? "Aucun document"}
               </p>
             </div>
           </div>

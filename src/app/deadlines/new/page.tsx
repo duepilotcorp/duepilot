@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
+import DeadlineDocumentField from "@/components/DeadlineDocumentField";
 import NotificationDaysSelector, {
   DEFAULT_NOTIFICATION_DAYS,
   normalizeNotificationDays,
 } from "@/components/NotificationDaysSelector";
+import { saveDeadlineDocument } from "@/lib/deadline-document-actions";
 import { createClient } from "@/lib/supabase/client";
 
 const CATEGORY_SUGGESTIONS = [
@@ -136,6 +138,9 @@ export default function NewDeadlinePage() {
   const [notificationDays, setNotificationDays] = useState<number[]>(
     DEFAULT_NOTIFICATION_DAYS
   );
+  const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(
+    null
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -179,21 +184,46 @@ export default function NewDeadlinePage() {
       return;
     }
 
-    const { error } = await supabase.from("deadlines").insert({
-      title: title.trim(),
-      category: category.trim(),
-      due_date: dueDate,
-      user_id: user.id,
-      notification_days: selectedNotificationDays,
-    });
+    const { data: createdDeadline, error } = await supabase
+      .from("deadlines")
+      .insert({
+        title: title.trim(),
+        category: category.trim(),
+        due_date: dueDate,
+        user_id: user.id,
+        notification_days: selectedNotificationDays,
+      })
+      .select("id")
+      .single();
 
-    if (error) {
+    if (error || !createdDeadline?.id) {
       console.error(error);
       setErrorMessage(
         "Impossible de créer cette échéance pour le moment. Vérifiez les informations puis réessayez."
       );
       setIsLoading(false);
       return;
+    }
+
+    if (selectedDocumentFile) {
+      const documentResult = await saveDeadlineDocument({
+        supabase,
+        userId: user.id,
+        deadlineId: Number(createdDeadline.id),
+        file: selectedDocumentFile,
+      });
+
+      if (documentResult.errorMessage) {
+        await supabase
+          .from("deadlines")
+          .delete()
+          .eq("id", createdDeadline.id)
+          .eq("user_id", user.id);
+
+        setErrorMessage(documentResult.errorMessage);
+        setIsLoading(false);
+        return;
+      }
     }
 
     router.push("/deadlines");
@@ -240,6 +270,11 @@ export default function NewDeadlinePage() {
                 <p>{deadlinePreviewCategory}</p>
                 <p>{formatDateForPreview(dueDate)}</p>
                 <p>{getReminderPreview(normalizedNotificationDays)}</p>
+                <p>
+                  {selectedDocumentFile
+                    ? selectedDocumentFile.name
+                    : "Aucun document attaché"}
+                </p>
               </div>
             </div>
           </div>
@@ -259,7 +294,7 @@ export default function NewDeadlinePage() {
                   </p>
                 </div>
                 <span className="inline-flex w-fit rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300">
-                  Étape 1/2
+                  Étape 1/3
                 </span>
               </div>
 
@@ -352,10 +387,17 @@ export default function NewDeadlinePage() {
               </div>
             </section>
 
+            <DeadlineDocumentField
+              selectedFile={selectedDocumentFile}
+              onSelectedFileChange={setSelectedDocumentFile}
+              disabled={isLoading}
+            />
+
             <NotificationDaysSelector
               selectedDays={notificationDays}
               onChange={setNotificationDays}
               disabled={isLoading}
+              stepLabel="Étape 3/3"
             />
 
             {errorMessage && (

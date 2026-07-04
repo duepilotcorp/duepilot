@@ -16,6 +16,7 @@ type NotificationDaysSelectorProps = {
   selectedDays: number[];
   onChange: (days: number[]) => void;
   disabled?: boolean;
+  stepLabel?: string;
 };
 
 export const NOTIFICATION_OPTIONS: NotificationOption[] = [
@@ -107,6 +108,7 @@ export default function NotificationDaysSelector({
   selectedDays,
   onChange,
   disabled = false,
+  stepLabel = "Étape 2/2",
 }: NotificationDaysSelectorProps) {
   const normalizedSelectedDays = normalizeNotificationDays(selectedDays);
 
@@ -144,9 +146,7 @@ export default function NotificationDaysSelector({
             {normalizedSelectedDays.length} rappel
             {normalizedSelectedDays.length > 1 ? "s" : ""}
           </span>
-          <span className="text-xs text-slate-500">
-            Étape 2/2
-          </span>
+          <span className="text-xs text-slate-500">{stepLabel}</span>
         </div>
       </div>
 

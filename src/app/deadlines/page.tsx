@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import DeadlineOnboardingEmptyState from "@/components/DeadlineOnboardingEmptyState";
 import DeleteDeadlineButton from "@/components/DeleteDeadlineButton";
 import LogoutButton from "@/components/LogoutButton";
+import { getDeadlineDocumentsByDeadlineId } from "@/lib/deadline-documents-server";
+import type { DeadlineDocument } from "@/lib/deadline-documents";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +27,7 @@ type EnrichedDeadline = Deadline & {
   statusClassName: string;
   indicatorClassName: string;
   priorityLabel: string;
+  document: DeadlineDocument | null;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -334,6 +337,11 @@ export default async function DeadlinesPage({
 
   const today = getTodayAtMidnight();
   const deadlineList = deadlines ?? [];
+  const documentsByDeadlineId = await getDeadlineDocumentsByDeadlineId({
+    supabase,
+    userId: user.id,
+    deadlineIds: deadlineList.map((deadline) => deadline.id),
+  });
 
   const enrichedDeadlines: EnrichedDeadline[] = deadlineList.map((deadline) => {
     const daysUntilDeadline = getDaysUntilDeadline(deadline.due_date, today);
@@ -349,6 +357,7 @@ export default async function DeadlinesPage({
       statusClassName: getStatusClassName(daysUntilDeadline),
       indicatorClassName: getIndicatorClassName(daysUntilDeadline),
       priorityLabel: getPriorityLabel(daysUntilDeadline),
+      document: documentsByDeadlineId.get(deadline.id) ?? null,
     };
   });
 
@@ -389,6 +398,7 @@ export default async function DeadlinesPage({
         deadline.formattedDate,
         deadline.readableStatus,
         deadline.priorityLabel,
+        deadline.document?.file_name ?? "",
       ]
         .join(" ")
         .toLocaleLowerCase("fr-FR");
@@ -420,6 +430,7 @@ export default async function DeadlinesPage({
   });
 
   const categoryCount = categories.length;
+  const documentCount = enrichedDeadlines.filter((deadline) => deadline.document).length;
   const filteredCount = filteredDeadlines.length;
   const activeFilters = buildFilterSummary({
     searchQuery,
@@ -515,6 +526,9 @@ export default async function DeadlinesPage({
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
                     {urgentDeadlines.length} priorité{urgentDeadlines.length > 1 ? "s" : ""}
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
+                    {documentCount} document{documentCount > 1 ? "s" : ""}
                   </span>
                 </div>
               </div>
@@ -756,6 +770,14 @@ export default async function DeadlinesPage({
                                   <p className="mt-1 text-sm text-slate-500">
                                     {deadline.priorityLabel}
                                   </p>
+                                  {deadline.document ? (
+                                    <Link
+                                      href={`/deadlines/documents/${deadline.document.id}`}
+                                      className="mt-2 inline-flex rounded-full border border-blue-400/20 bg-blue-400/10 px-2.5 py-1 text-xs font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15"
+                                    >
+                                      Voir le PDF
+                                    </Link>
+                                  ) : null}
                                 </div>
                               </div>
                             </td>
@@ -792,7 +814,10 @@ export default async function DeadlinesPage({
                                   Modifier
                                 </Link>
 
-                                <DeleteDeadlineButton id={deadline.id} />
+                                <DeleteDeadlineButton
+                                  id={deadline.id}
+                                  documentFilePath={deadline.document?.file_path}
+                                />
                               </div>
                             </td>
                           </tr>
@@ -842,6 +867,21 @@ export default async function DeadlinesPage({
                               {deadline.readableStatus}
                             </p>
                           </div>
+                          <div className="sm:col-span-2">
+                            <p className="text-slate-500">Document</p>
+                            {deadline.document ? (
+                              <Link
+                                href={`/deadlines/documents/${deadline.document.id}`}
+                                className="mt-1 inline-flex font-medium text-blue-100 transition hover:text-white"
+                              >
+                                Voir le PDF joint
+                              </Link>
+                            ) : (
+                              <p className="mt-1 font-medium text-slate-500">
+                                Aucun document
+                              </p>
+                            )}
+                          </div>
                         </div>
 
                         <div className="mt-4 flex gap-2">
@@ -852,7 +892,10 @@ export default async function DeadlinesPage({
                             Modifier
                           </Link>
 
-                          <DeleteDeadlineButton id={deadline.id} />
+                          <DeleteDeadlineButton
+                            id={deadline.id}
+                            documentFilePath={deadline.document?.file_path}
+                          />
                         </div>
                       </article>
                     ))}
