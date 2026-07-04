@@ -9,6 +9,7 @@ import NotificationDaysSelector, {
   DEFAULT_NOTIFICATION_DAYS,
   normalizeNotificationDays,
 } from "@/components/NotificationDaysSelector";
+import { createActivityLogs } from "@/lib/activity-logs";
 import { saveDeadlineDocument } from "@/lib/deadline-document-actions";
 import type { DeadlineTemplate } from "@/lib/deadline-templates";
 import { createClient } from "@/lib/supabase/client";
@@ -242,6 +243,40 @@ export default function NewDeadlinePage() {
         return;
       }
     }
+
+    await createActivityLogs([
+      {
+        supabase,
+        userId: user.id,
+        deadlineId: Number(createdDeadline.id),
+        action: "deadline.created",
+        title: "Échéance créée",
+        description: `${title.trim()} a été ajoutée au suivi DuePilot.`,
+        metadata: {
+          title: title.trim(),
+          category: category.trim(),
+          due_date: dueDate,
+          notification_days: selectedNotificationDays,
+          template: appliedTemplateName || null,
+        },
+      },
+      ...(selectedDocumentFile
+        ? [
+            {
+              supabase,
+              userId: user.id,
+              deadlineId: Number(createdDeadline.id),
+              action: "document.added" as const,
+              title: "Document ajouté",
+              description: `${selectedDocumentFile.name} a été associé à l’échéance.`,
+              metadata: {
+                file_name: selectedDocumentFile.name,
+                file_size: selectedDocumentFile.size,
+              },
+            },
+          ]
+        : []),
+    ]);
 
     router.push("/deadlines");
     router.refresh();

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import DeleteDeadlineButton from "@/components/DeleteDeadlineButton";
+import { getActivityLogTone, getDeadlineActivityLogs } from "@/lib/activity-logs";
 import { formatFileSize } from "@/lib/deadline-documents";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
 import { createClient } from "@/lib/supabase/server";
@@ -270,6 +271,13 @@ export default async function DeadlineDetailPage({
   }
 
   const logs = notificationLogsError ? [] : notificationLogs ?? [];
+  const activityLogs = await getDeadlineActivityLogs({
+    supabase,
+    userId: user.id,
+    deadlineId: typedDeadline.id,
+    limit: 10,
+  });
+
   const formattedDueDate = formatDeadlineDate(typedDeadline.due_date);
   const formattedCreatedAt = formatDateTime(typedDeadline.created_at);
   const categoryLabel = typedDeadline.category?.trim() || "Sans catégorie";
@@ -327,6 +335,8 @@ export default async function DeadlineDetailPage({
             </Link>
             <DeleteDeadlineButton
               id={typedDeadline.id}
+              title={typedDeadline.title}
+              category={typedDeadline.category}
               documentFilePath={document?.file_path}
               redirectTo="/deadlines"
             />
@@ -541,6 +551,57 @@ export default async function DeadlineDetailPage({
                   </Link>
                 </div>
               )}
+            </section>
+
+            <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
+              <div>
+                <h2 className="text-2xl font-bold text-white">
+                  Journal d’activité
+                </h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Les dernières actions enregistrées sur cette échéance.
+                </p>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                {activityLogs.length > 0 ? (
+                  activityLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-100">
+                            {log.title}
+                          </p>
+                          {log.description ? (
+                            <p className="mt-2 text-sm leading-6 text-slate-400">
+                              {log.description}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <span
+                          className={`w-fit shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${getActivityLogTone(log.action)}`}
+                        >
+                          {formatDateTime(log.created_at)}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <p className="font-semibold text-white">
+                      Aucun événement enregistré pour le moment.
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      Les prochaines créations, modifications, documents et
+                      notifications apparaîtront automatiquement ici.
+                    </p>
+                  </div>
+                )}
+              </div>
             </section>
 
             <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">

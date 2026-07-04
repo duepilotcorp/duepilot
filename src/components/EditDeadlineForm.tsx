@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import DeadlineDocumentField from "@/components/DeadlineDocumentField";
+import { createActivityLogs, type CreateActivityLogParams } from "@/lib/activity-logs";
 import NotificationDaysSelector, {
   DEFAULT_NOTIFICATION_DAYS,
   normalizeNotificationDays,
@@ -274,6 +275,108 @@ export default function EditDeadlineForm({
         setIsLoading(false);
         return;
       }
+    }
+
+    const activityLogs: CreateActivityLogParams[] = [];
+
+    if (title.trim() !== deadline.title) {
+      activityLogs.push({
+        supabase,
+        userId: user.id,
+        deadlineId: deadline.id,
+        action: "deadline.title_updated",
+        title: "Nom modifié",
+        description: `Le nom est passé de « ${deadline.title} » à « ${title.trim()} ».`,
+        metadata: {
+          previous_title: deadline.title,
+          new_title: title.trim(),
+        },
+      });
+    }
+
+    if (category.trim() !== deadline.category) {
+      activityLogs.push({
+        supabase,
+        userId: user.id,
+        deadlineId: deadline.id,
+        action: "deadline.category_updated",
+        title: "Catégorie modifiée",
+        description: `La catégorie est passée de « ${deadline.category} » à « ${category.trim()} ».`,
+        metadata: {
+          previous_category: deadline.category,
+          new_category: category.trim(),
+        },
+      });
+    }
+
+    if (dueDate !== deadline.due_date) {
+      activityLogs.push({
+        supabase,
+        userId: user.id,
+        deadlineId: deadline.id,
+        action: "deadline.due_date_updated",
+        title: "Date d’échéance modifiée",
+        description: `La date est passée du ${deadline.due_date} au ${dueDate}.`,
+        metadata: {
+          previous_due_date: deadline.due_date,
+          new_due_date: dueDate,
+        },
+      });
+    }
+
+    if (
+      JSON.stringify(selectedNotificationDays) !==
+      JSON.stringify(initialNotificationDays)
+    ) {
+      activityLogs.push({
+        supabase,
+        userId: user.id,
+        deadlineId: deadline.id,
+        action: "deadline.reminders_updated",
+        title: "Rappels modifiés",
+        description: "La configuration des rappels automatiques a été mise à jour.",
+        metadata: {
+          previous_notification_days: initialNotificationDays,
+          new_notification_days: selectedNotificationDays,
+        },
+      });
+    }
+
+    if (selectedDocumentFile) {
+      const isReplacement = Boolean(document);
+
+      activityLogs.push({
+        supabase,
+        userId: user.id,
+        deadlineId: deadline.id,
+        action: isReplacement ? "document.replaced" : "document.added",
+        title: isReplacement ? "Document remplacé" : "Document ajouté",
+        description: isReplacement
+          ? `${document?.file_name ?? "Le document précédent"} a été remplacé par ${selectedDocumentFile.name}.`
+          : `${selectedDocumentFile.name} a été associé à l’échéance.`,
+        metadata: {
+          previous_file_name: document?.file_name ?? null,
+          new_file_name: selectedDocumentFile.name,
+          new_file_size: selectedDocumentFile.size,
+        },
+      });
+    } else if (shouldRemoveDocument && document) {
+      activityLogs.push({
+        supabase,
+        userId: user.id,
+        deadlineId: deadline.id,
+        action: "document.removed",
+        title: "Document supprimé",
+        description: `${document.file_name} a été retiré de l’échéance.`,
+        metadata: {
+          file_name: document.file_name,
+          file_size: document.file_size,
+        },
+      });
+    }
+
+    if (activityLogs.length > 0) {
+      await createActivityLogs(activityLogs);
     }
 
     router.push("/deadlines");

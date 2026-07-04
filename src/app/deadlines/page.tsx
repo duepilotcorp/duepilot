@@ -819,6 +819,8 @@ export default async function DeadlinesPage({
 
                                 <DeleteDeadlineButton
                                   id={deadline.id}
+                                  title={deadline.title}
+                                  category={deadline.category}
                                   documentFilePath={deadline.document?.file_path}
                                 />
                               </div>
@@ -907,6 +909,8 @@ export default async function DeadlinesPage({
 
                           <DeleteDeadlineButton
                             id={deadline.id}
+                            title={deadline.title}
+                            category={deadline.category}
                             documentFilePath={deadline.document?.file_path}
                           />
                         </div>

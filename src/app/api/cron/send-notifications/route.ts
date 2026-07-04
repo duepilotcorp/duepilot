@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { createActivityLog } from "@/lib/activity-logs";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -169,6 +170,20 @@ export async function GET(request: Request) {
       user_id: deadline.user_id,
       notification_day: daysUntilDueDate,
       due_date: deadline.due_date,
+    });
+
+    await createActivityLog({
+      supabase: supabaseAdmin,
+      userId: deadline.user_id,
+      deadlineId: deadline.id,
+      action: "notification.sent",
+      title: `Rappel ${getNotificationSubjectPrefix(daysUntilDueDate).replace("Échéance ", "")} envoyé`,
+      description: `Un email de rappel a été envoyé à ${email}.`,
+      metadata: {
+        notification_day: daysUntilDueDate,
+        due_date: deadline.due_date,
+        email,
+      },
     });
 
     deadlinesToNotify.push({

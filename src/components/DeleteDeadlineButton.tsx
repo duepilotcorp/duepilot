@@ -2,17 +2,22 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { createActivityLog } from "@/lib/activity-logs";
 import { DEADLINE_DOCUMENTS_BUCKET } from "@/lib/deadline-documents";
 import { createClient } from "@/lib/supabase/client";
 
 type DeleteDeadlineButtonProps = {
   id: number;
+  title?: string;
+  category?: string | null;
   documentFilePath?: string | null;
   redirectTo?: string;
 };
 
 export default function DeleteDeadlineButton({
   id,
+  title,
+  category,
   documentFilePath,
   redirectTo,
 }: DeleteDeadlineButtonProps) {
@@ -61,6 +66,22 @@ export default function DeleteDeadlineButton({
         console.warn(storageError);
       }
     }
+
+    await createActivityLog({
+      supabase,
+      userId: user.id,
+      deadlineId: id,
+      action: "deadline.deleted",
+      title: "Échéance supprimée",
+      description: title
+        ? `${title} a été supprimée du suivi DuePilot.`
+        : "Une échéance a été supprimée du suivi DuePilot.",
+      metadata: {
+        title: title ?? null,
+        category: category ?? null,
+        had_document: Boolean(documentFilePath),
+      },
+    });
 
     if (redirectTo) {
       router.push(redirectTo);
