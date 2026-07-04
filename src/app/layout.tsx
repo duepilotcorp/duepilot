@@ -12,8 +12,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl = "https://www.duepilot.fr";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://duepilot-puce.vercel.app"),
+  metadataBase: new URL(siteUrl),
   title: {
     default: "DuePilot — Le copilote administratif des entreprises",
     template: "%s | DuePilot",
@@ -21,14 +23,27 @@ export const metadata: Metadata = {
   description:
     "DuePilot aide les entreprises à centraliser, suivre et anticiper leurs échéances administratives, réglementaires et contractuelles.",
   applicationName: "DuePilot",
+  alternates: {
+    canonical: siteUrl,
+  },
   openGraph: {
     title: "DuePilot — Le copilote administratif des entreprises",
     description:
       "Centralisez vos échéances administratives, réglementaires et contractuelles dans un espace simple, fiable et sécurisé.",
-    url: "https://duepilot-puce.vercel.app",
+    url: siteUrl,
     siteName: "DuePilot",
     locale: "fr_FR",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DuePilot — Le copilote administratif des entreprises",
+    description:
+      "Centralisez vos échéances administratives, réglementaires et contractuelles dans un espace simple, fiable et sécurisé.",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
