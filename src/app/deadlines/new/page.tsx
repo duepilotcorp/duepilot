@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import DeadlineDocumentField from "@/components/DeadlineDocumentField";
+import DeadlineTemplatePicker from "@/components/DeadlineTemplatePicker";
 import NotificationDaysSelector, {
   DEFAULT_NOTIFICATION_DAYS,
   normalizeNotificationDays,
 } from "@/components/NotificationDaysSelector";
 import { saveDeadlineDocument } from "@/lib/deadline-document-actions";
+import type { DeadlineTemplate } from "@/lib/deadline-templates";
 import { createClient } from "@/lib/supabase/client";
 
 const CATEGORY_SUGGESTIONS = [
@@ -141,6 +143,10 @@ export default function NewDeadlinePage() {
   const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(
     null
   );
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+    null
+  );
+  const [appliedTemplateName, setAppliedTemplateName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -151,6 +157,17 @@ export default function NewDeadlinePage() {
   const dateInsight = useMemo(() => getDateInsight(dueDate), [dueDate]);
   const deadlinePreviewTitle = title.trim() || "Nouvelle échéance";
   const deadlinePreviewCategory = category.trim() || "Catégorie non définie";
+
+  const handleTemplateSelect = (template: DeadlineTemplate) => {
+    if (isLoading) return;
+
+    setTitle(template.title);
+    setCategory(template.category);
+    setNotificationDays(template.recommendedNotificationDays);
+    setSelectedTemplateId(template.id);
+    setAppliedTemplateName(template.title);
+    setErrorMessage("");
+  };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -271,6 +288,11 @@ export default function NewDeadlinePage() {
                 <p>{formatDateForPreview(dueDate)}</p>
                 <p>{getReminderPreview(normalizedNotificationDays)}</p>
                 <p>
+                  {appliedTemplateName
+                    ? `Modèle : ${appliedTemplateName}`
+                    : "Aucun modèle appliqué"}
+                </p>
+                <p>
                   {selectedDocumentFile
                     ? selectedDocumentFile.name
                     : "Aucun document attaché"}
@@ -282,6 +304,12 @@ export default function NewDeadlinePage() {
 
         <form onSubmit={handleSubmit} className="mt-8 grid gap-6 lg:grid-cols-[1fr_22rem]">
           <div className="space-y-6">
+            <DeadlineTemplatePicker
+              selectedTemplateId={selectedTemplateId}
+              onSelectTemplate={handleTemplateSelect}
+              disabled={isLoading}
+            />
+
             <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-2xl shadow-slate-950/20 sm:p-6">
               <div className="flex flex-col gap-2 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
                 <div>

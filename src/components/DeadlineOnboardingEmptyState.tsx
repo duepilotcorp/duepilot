@@ -8,9 +8,9 @@ type DeadlineOnboardingEmptyStateProps = {
 const onboardingSteps = [
   {
     number: "01",
-    title: "Listez vos obligations critiques",
+    title: "Choisissez un modèle ou listez vos obligations",
     description:
-      "Commencez par les documents dont l’oubli peut créer une pénalité, une perte de couverture ou une non-conformité.",
+      "Démarrez avec une échéance type par secteur, puis complétez avec les documents dont l’oubli peut créer une pénalité, une perte de couverture ou une non-conformité.",
   },
   {
     number: "02",
@@ -75,7 +75,7 @@ export default function DeadlineOnboardingEmptyState({
   const description =
     variant === "dashboard"
       ? "Ajoutez quelques obligations clés : DuePilot générera ensuite les priorités, le score de suivi et les prochaines actions à traiter."
-      : "Démarrez avec les échéances qui ont le plus d’impact sur votre conformité, vos assurances et la continuité de votre activité.";
+      : "Démarrez avec les modèles d’échéances qui ont le plus d’impact sur votre conformité, vos assurances et la continuité de votre activité.";
 
   return (
     <div className={containerClassName}>
@@ -95,10 +95,10 @@ export default function DeadlineOnboardingEmptyState({
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Link
-              href="/deadlines/new"
+              href="/deadlines/new#template-library"
               className="inline-flex justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
             >
-              Ajouter une première échéance
+              Ajouter avec un modèle
             </Link>
             <Link
               href="/deadlines"
@@ -134,7 +134,7 @@ export default function DeadlineOnboardingEmptyState({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h3 className="text-xl font-bold text-white">
-                Échéances recommandées
+                Modèles recommandés
               </h3>
               <p className="mt-1 text-sm leading-6 text-slate-400">
                 Quelques exemples concrets pour remplir rapidement votre premier registre.
@@ -149,7 +149,7 @@ export default function DeadlineOnboardingEmptyState({
             {starterDeadlines.map((deadline) => (
               <Link
                 key={`${deadline.title}-${deadline.category}`}
-                href="/deadlines/new"
+                href="/deadlines/new#template-library"
                 className="group rounded-3xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-blue-400/40 hover:bg-blue-400/10"
               >
                 <div className="flex items-start justify-between gap-3">
