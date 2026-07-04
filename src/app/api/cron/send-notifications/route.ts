@@ -132,9 +132,8 @@ export async function GET(request: Request) {
     );
 
     const { error: emailError } = await resend.emails.send({
-      from: "DuePilot <onboarding@resend.dev>",
-      // Resend est encore en mode test : remettre `email` dès que le domaine est validé.
-      to: "duepilotcorp@gmail.com",
+      from: "DuePilot <notifications@duepilot.fr>",
+      to: email,
       subject: `${getNotificationSubjectPrefix(daysUntilDueDate)} : ${deadline.title}`,
       html: `
         <h2>Rappel d'échéance</h2>

@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   const safeMessage = escapeHtml(message || "Aucun message complémentaire.");
 
   const { error } = await resend.emails.send({
-    from: "DuePilot <onboarding@resend.dev>",
+    from: "DuePilot <contact@duepilot.fr>",
     to: ACCESS_REQUEST_RECIPIENT,
     subject: `Nouvelle demande d’accès beta DuePilot — ${company}`,
     html: `
