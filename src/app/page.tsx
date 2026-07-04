@@ -98,7 +98,7 @@ export default function Home() {
               href="/register"
               className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950 shadow-2xl shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-50"
             >
-              Créer un compte
+              Demander un accès beta
             </Link>
           </div>
         </div>
@@ -129,7 +129,7 @@ export default function Home() {
                 href="/register"
                 className="inline-flex items-center justify-center rounded-2xl bg-blue-500 px-6 py-4 text-sm font-semibold text-white shadow-2xl shadow-blue-500/25 transition hover:-translate-y-0.5 hover:bg-blue-400"
               >
-                Démarrer la beta privée
+                Demander un accès beta
               </Link>
               <Link
                 href="/login"
@@ -350,7 +350,7 @@ export default function Home() {
               href="/register"
               className="rounded-2xl bg-blue-500 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-400"
             >
-              Créer un compte
+              Demander un accès beta
             </Link>
             <Link
               href="/login"

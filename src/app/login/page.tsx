@@ -189,12 +189,12 @@ export default function LoginPage() {
               </form>
 
               <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-center text-sm text-slate-400">
-                Pas encore de compte ?{" "}
+                Pas encore d’accès ?{" "}
                 <Link
                   href="/register"
                   className="font-semibold text-blue-200 transition hover:text-blue-100"
                 >
-                  Créer un espace DuePilot
+                  Demander un accès beta
                 </Link>
               </div>
             </div>

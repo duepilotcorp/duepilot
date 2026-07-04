@@ -1,77 +1,45 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { FormEvent, useState } from "react";
 
 const benefits = [
-  "Dashboard de pilotage",
-  "Échéances et rappels configurables",
-  "Données isolées et accès sécurisé",
+  "Accès beta contrôlé",
+  "Accompagnement sur les premières échéances",
+  "Ouverture progressive aux entreprises pilotes",
 ];
 
-function getPasswordStrength(password: string) {
-  if (!password) {
-    return {
-      label: "Minimum 6 caractères",
-      className: "bg-slate-700",
-      widthClassName: "w-0",
-    };
+const volumes = [
+  "Moins de 10 échéances",
+  "Entre 10 et 30 échéances",
+  "Entre 30 et 100 échéances",
+  "Plus de 100 échéances",
+  "Je ne sais pas encore",
+];
+
+function getFriendlyRequestError(status: number, fallback: string) {
+  if (status === 400) {
+    return fallback || "Vérifiez les informations renseignées avant d’envoyer la demande.";
   }
 
-  if (password.length < 6) {
-    return {
-      label: "Trop court",
-      className: "bg-red-400",
-      widthClassName: "w-1/3",
-    };
+  if (status === 500) {
+    return "La demande n’a pas pu être envoyée pour le moment. Réessayez dans quelques instants.";
   }
 
-  if (password.length < 10) {
-    return {
-      label: "Correct",
-      className: "bg-yellow-300",
-      widthClassName: "w-2/3",
-    };
-  }
-
-  return {
-    label: "Solide",
-    className: "bg-emerald-300",
-    widthClassName: "w-full",
-  };
-}
-
-function getFriendlySignUpError(message: string) {
-  const normalizedMessage = message.toLowerCase();
-
-  if (normalizedMessage.includes("already") || normalizedMessage.includes("registered")) {
-    return "Un compte existe peut-être déjà avec cette adresse email. Essayez de vous connecter.";
-  }
-
-  if (normalizedMessage.includes("password")) {
-    return "Le mot de passe ne respecte pas les règles demandées.";
-  }
-
-  if (normalizedMessage.includes("email")) {
-    return "L’adresse email renseignée ne semble pas valide.";
-  }
-
-  return "Impossible de créer le compte pour le moment. Réessayez dans quelques instants.";
+  return fallback || "Impossible d’envoyer la demande pour le moment.";
 }
 
 export default function RegisterPage() {
-  const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
-
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [company, setCompany] = useState("");
+  const [role, setRole] = useState("");
+  const [deadlineVolume, setDeadlineVolume] = useState(volumes[1]);
+  const [message, setMessage] = useState("");
+  const [website, setWebsite] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-
-  const passwordStrength = getPasswordStrength(password);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -81,42 +49,55 @@ export default function RegisterPage() {
     setErrorMessage("");
     setSuccessMessage("");
 
-    if (!email.trim() || !password) {
-      setErrorMessage("Renseignez votre email et choisissez un mot de passe.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setErrorMessage("Le mot de passe doit contenir au moins 6 caractères.");
+    if (!fullName.trim() || !email.trim() || !company.trim() || !role.trim()) {
+      setErrorMessage("Complétez les champs obligatoires pour demander un accès beta.");
       return;
     }
 
     setIsLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
-      },
-    });
+    try {
+      const response = await fetch("/api/beta-access", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fullName,
+          email,
+          company,
+          role,
+          deadlineVolume,
+          message,
+          website,
+        }),
+      });
 
-    if (error) {
-      setErrorMessage(getFriendlySignUpError(error.message));
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        setErrorMessage(getFriendlyRequestError(response.status, result.error ?? ""));
+        setIsLoading(false);
+        return;
+      }
+
+      setSuccessMessage(
+        "Demande envoyée. Nous reviendrons vers vous par email si votre entreprise correspond à la beta privée."
+      );
+      setFullName("");
+      setEmail("");
+      setCompany("");
+      setRole("");
+      setDeadlineVolume(volumes[1]);
+      setMessage("");
+      setWebsite("");
+    } catch {
+      setErrorMessage("Connexion impossible. Vérifiez votre réseau puis réessayez.");
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    if (data.session) {
-      router.replace("/dashboard");
-      router.refresh();
-      return;
-    }
-
-    setSuccessMessage(
-      "Compte créé. Vérifiez votre boîte mail pour confirmer votre inscription."
-    );
-    setIsLoading(false);
   };
 
   return (
@@ -142,14 +123,15 @@ export default function RegisterPage() {
 
             <div className="mt-16 max-w-xl">
               <p className="inline-flex rounded-full border border-emerald-300/25 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-100">
-                Création d’espace
+                Beta privée contrôlée
               </p>
               <h1 className="mt-7 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl lg:text-6xl">
-                Construisez votre cockpit administratif en quelques minutes.
+                Rejoindre DuePilot comme entreprise pilote.
               </h1>
               <p className="mt-6 text-lg leading-8 text-slate-300">
-                Ajoutez vos premières échéances, configurez vos rappels et
-                obtenez une vision immédiate des priorités de votre entreprise.
+                DuePilot ouvre progressivement ses accès aux entreprises qui
+                veulent mieux anticiper leurs échéances administratives,
+                réglementaires et contractuelles.
               </p>
             </div>
           </div>
@@ -170,68 +152,153 @@ export default function RegisterPage() {
         </aside>
 
         <div className="flex items-center justify-center py-10 lg:py-0">
-          <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 shadow-2xl shadow-black/30 backdrop-blur">
+          <div className="w-full max-w-xl rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 shadow-2xl shadow-black/30 backdrop-blur">
             <div className="rounded-[1.55rem] border border-white/10 bg-slate-950/90 p-6 sm:p-8">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-200">
-                  Inscription
+                  Demande d’accès
                 </p>
                 <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                  Créer votre espace
+                  Demander un accès beta
                 </h2>
                 <p className="mt-3 leading-7 text-slate-400">
-                  Accédez à DuePilot et commencez à centraliser vos échéances
-                  administratives sensibles.
+                  L’inscription publique est temporairement fermée. Décrivez votre
+                  entreprise et nous ouvrirons les accès progressivement aux bons
+                  profils de test.
                 </p>
               </div>
 
               <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="mb-2 block text-sm font-medium text-slate-200"
-                  >
-                    Adresse email professionnelle
-                  </label>
+                <div className="hidden" aria-hidden="true">
+                  <label htmlFor="website">Site web</label>
                   <input
-                    id="email"
-                    type="email"
-                    placeholder="vous@entreprise.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                    disabled={isLoading}
-                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/70 focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+                    id="website"
+                    type="text"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
                   />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="fullName"
+                      className="mb-2 block text-sm font-medium text-slate-200"
+                    >
+                      Nom complet
+                    </label>
+                    <input
+                      id="fullName"
+                      type="text"
+                      placeholder="Julien Martin"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      autoComplete="name"
+                      disabled={isLoading}
+                      className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/70 focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="email"
+                      className="mb-2 block text-sm font-medium text-slate-200"
+                    >
+                      Email professionnel
+                    </label>
+                    <input
+                      id="email"
+                      type="email"
+                      placeholder="vous@entreprise.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                      disabled={isLoading}
+                      className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/70 focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="company"
+                      className="mb-2 block text-sm font-medium text-slate-200"
+                    >
+                      Entreprise
+                    </label>
+                    <input
+                      id="company"
+                      type="text"
+                      placeholder="Nom de l’entreprise"
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      autoComplete="organization"
+                      disabled={isLoading}
+                      className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/70 focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="role"
+                      className="mb-2 block text-sm font-medium text-slate-200"
+                    >
+                      Rôle
+                    </label>
+                    <input
+                      id="role"
+                      type="text"
+                      placeholder="Dirigeant, RAF, office manager..."
+                      value={role}
+                      onChange={(e) => setRole(e.target.value)}
+                      autoComplete="organization-title"
+                      disabled={isLoading}
+                      className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/70 focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label
-                    htmlFor="password"
+                    htmlFor="deadlineVolume"
                     className="mb-2 block text-sm font-medium text-slate-200"
                   >
-                    Mot de passe
+                    Volume d’échéances à suivre
                   </label>
-                  <input
-                    id="password"
-                    type="password"
-                    placeholder="Minimum 6 caractères"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="new-password"
+                  <select
+                    id="deadlineVolume"
+                    value={deadlineVolume}
+                    onChange={(e) => setDeadlineVolume(e.target.value)}
                     disabled={isLoading}
-                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/70 focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-white outline-none transition focus:border-blue-400/70 focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {volumes.map((item) => (
+                      <option key={item} value={item} className="bg-slate-950 text-white">
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="message"
+                    className="mb-2 block text-sm font-medium text-slate-200"
+                  >
+                    Message optionnel
+                  </label>
+                  <textarea
+                    id="message"
+                    rows={4}
+                    placeholder="Exemple : nous devons suivre nos assurances, certifications, contrôles réglementaires et contrats fournisseurs."
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    disabled={isLoading}
+                    className="w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/70 focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
                   />
-                  <div className="mt-3">
-                    <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className={`h-full rounded-full transition-all ${passwordStrength.widthClassName} ${passwordStrength.className}`}
-                      />
-                    </div>
-                    <p className="mt-2 text-xs text-slate-500">
-                      Sécurité du mot de passe : {passwordStrength.label}
-                    </p>
-                  </div>
                 </div>
 
                 {errorMessage && (
@@ -251,12 +318,12 @@ export default function RegisterPage() {
                   disabled={isLoading}
                   className="w-full rounded-2xl bg-blue-500 px-6 py-4 text-sm font-semibold text-white shadow-2xl shadow-blue-500/20 transition hover:-translate-y-0.5 hover:bg-blue-400 disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-blue-500/50 disabled:shadow-none"
                 >
-                  {isLoading ? "Création en cours..." : "Créer mon compte"}
+                  {isLoading ? "Envoi de la demande..." : "Demander un accès beta"}
                 </button>
               </form>
 
               <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-center text-sm text-slate-400">
-                Déjà un compte ?{" "}
+                Vous avez déjà un accès ?{" "}
                 <Link
                   href="/login"
                   className="font-semibold text-blue-200 transition hover:text-blue-100"
