@@ -1,5 +1,3 @@
-export const BETA_ACCESS_ADMIN_EMAIL = "duepilotcorp@gmail.com";
-
 export const BETA_ACCESS_STATUSES = [
   "new",
   "contacted",
@@ -16,9 +14,6 @@ export const BETA_ACCESS_STATUS_LABELS: Record<BetaAccessStatus, string> = {
   rejected: "Refusé",
 };
 
-export function isBetaAccessAdmin(email: string | null | undefined) {
-  return email?.toLowerCase() === BETA_ACCESS_ADMIN_EMAIL;
-}
 
 export function isBetaAccessStatus(value: string): value is BetaAccessStatus {
   return BETA_ACCESS_STATUSES.includes(value as BetaAccessStatus);

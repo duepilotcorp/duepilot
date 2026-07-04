@@ -5,10 +5,10 @@ import LogoutButton from "@/components/LogoutButton";
 import {
   BETA_ACCESS_STATUS_LABELS,
   BETA_ACCESS_STATUSES,
-  isBetaAccessAdmin,
   isBetaAccessStatus,
   type BetaAccessStatus,
 } from "@/lib/beta-access-admin";
+import { isUserAdmin } from "@/lib/user-roles";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -76,7 +76,7 @@ async function updateBetaAccessRequest(formData: FormData) {
     redirect("/login");
   }
 
-  if (!isBetaAccessAdmin(user.email)) {
+  if (!(await isUserAdmin(user.id))) {
     redirect("/dashboard");
   }
 
@@ -119,7 +119,7 @@ export default async function BetaRequestsAdminPage() {
     redirect("/login");
   }
 
-  if (!isBetaAccessAdmin(user.email)) {
+  if (!(await isUserAdmin(user.id))) {
     redirect("/dashboard");
   }
 

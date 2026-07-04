@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import DeadlineOnboardingEmptyState from "@/components/DeadlineOnboardingEmptyState";
 import LogoutButton from "@/components/LogoutButton";
 import { getDeadlineDocumentsByDeadlineId } from "@/lib/deadline-documents-server";
-import { isBetaAccessAdmin } from "@/lib/beta-access-admin";
+import { isUserAdmin } from "@/lib/user-roles";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -234,7 +234,7 @@ export default async function DashboardPage() {
     (deadline) => deadline.daysUntilDeadline > 30
   ).length;
   const documentCount = enrichedDeadlines.filter((deadline) => deadline.document).length;
-  const isAdminUser = isBetaAccessAdmin(user.email);
+  const isAdminUser = await isUserAdmin(user.id);
 
   const urgentDeadlines = enrichedDeadlines
     .filter((deadline) => deadline.daysUntilDeadline <= 30)

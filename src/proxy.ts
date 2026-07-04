@@ -1,8 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const BETA_ACCESS_ADMIN_EMAIL = "duepilotcorp@gmail.com";
-
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request,
@@ -54,12 +52,21 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && isAdminPage && user.email?.toLowerCase() !== BETA_ACCESS_ADMIN_EMAIL) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/dashboard";
-    redirectUrl.search = "";
+  if (user && isAdminPage) {
+    const { data: roleData, error: roleError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
 
-    return NextResponse.redirect(redirectUrl);
+    if (roleError || !roleData) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/dashboard";
+      redirectUrl.search = "";
+
+      return NextResponse.redirect(redirectUrl);
+    }
   }
 
   if (user && isAuthPage) {
