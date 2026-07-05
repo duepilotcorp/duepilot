@@ -50,10 +50,12 @@ type EnrichedDeadline = Deadline & {
 type StatusFilter = "all" | "late" | "today" | "next7" | "next30" | "safe";
 type ScopeFilter = "all" | "team" | "personal" | "in_progress" | "completed" | "history";
 type SortOption = "due_asc" | "due_desc" | "title_asc" | "created_desc";
+type VisibilityFilter = "all" | "team" | "personal";
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 
 const SCOPE_FILTERS: ScopeFilter[] = ["all", "team", "personal", "in_progress", "completed", "history"];
+const VISIBILITY_FILTERS: VisibilityFilter[] = ["all", "team", "personal"];
 
 const STATUS_FILTERS: StatusFilter[] = [
   "all",
@@ -162,6 +164,12 @@ function getSortOption(value: string | null): SortOption {
     : "due_asc";
 }
 
+function getVisibilityFilter(value: string | null): VisibilityFilter {
+  return VISIBILITY_FILTERS.includes(value as VisibilityFilter)
+    ? (value as VisibilityFilter)
+    : "all";
+}
+
 function matchesScopeFilter(deadline: EnrichedDeadline, scope: ScopeFilter) {
   if (scope === "history") return deadline.workflowStatus === "archived";
   if (deadline.workflowStatus === "archived") return false;
@@ -169,6 +177,12 @@ function matchesScopeFilter(deadline: EnrichedDeadline, scope: ScopeFilter) {
   if (scope === "personal") return deadline.visibility === "personal";
   if (scope === "in_progress") return deadline.workflowStatus === "in_progress";
   if (scope === "completed") return deadline.workflowStatus === "completed";
+  return true;
+}
+
+function matchesVisibilityFilter(deadline: EnrichedDeadline, visibility: VisibilityFilter) {
+  if (visibility === "team") return deadline.visibility === "team";
+  if (visibility === "personal") return deadline.visibility === "personal";
   return true;
 }
 
@@ -281,6 +295,7 @@ export async function GET(request: NextRequest) {
   const searchQuery = rawSearchQuery.trim().slice(0, 80);
   const normalizedSearchQuery = searchQuery.toLocaleLowerCase("fr-FR");
   const scopeFilter = getScopeFilter(searchParams.get("scope"));
+  const visibilityFilter = getVisibilityFilter(searchParams.get("visibility"));
   const statusFilter = getStatusFilter(searchParams.get("status"));
   const categoryFilter = searchParams.get("category") || "all";
   const yearFilter = (searchParams.get("year") ?? "").replace(/[^0-9]/g, "").slice(0, 4);
@@ -371,11 +386,21 @@ export async function GET(request: NextRequest) {
         : true;
       const matchesCategory =
         categoryFilter === "all" || deadline.categoryLabel === categoryFilter;
+      const deadlineDate = parseLocalDate(deadline.due_date);
+      const matchesYear = yearFilter
+        ? String(deadlineDate.getFullYear()) === yearFilter
+        : true;
+      const matchesMonth = monthFilter
+        ? String(deadlineDate.getMonth() + 1).padStart(2, "0") === monthFilter
+        : true;
 
       return (
         matchesSearch &&
         matchesCategory &&
+        matchesYear &&
+        matchesMonth &&
         matchesScopeFilter(deadline, scopeFilter) &&
+        matchesVisibilityFilter(deadline, visibilityFilter) &&
         matchesStatusFilter(deadline, statusFilter)
       );
     }),

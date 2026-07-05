@@ -73,7 +73,7 @@ type EnrichedDeadline = Deadline & {
 type SearchParams = Record<string, string | string[] | undefined>;
 
 type StatusFilter = "all" | "late" | "today" | "next7" | "next30" | "safe";
-type ScopeFilter = "all" | "team" | "personal" | "in_progress" | "completed" | "history";
+type ScopeFilter = "all" | "team" | "personal" | "in_progress" | "completed";
 type SortOption = "due_asc" | "due_desc" | "title_asc" | "created_desc";
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
@@ -83,7 +83,6 @@ const SCOPE_FILTERS: { value: ScopeFilter; label: string }[] = [
   { value: "personal", label: "Personnel" },
   { value: "in_progress", label: "En cours" },
   { value: "completed", label: "À valider" },
-  { value: "history", label: "Historique" },
 ];
 
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
@@ -298,8 +297,6 @@ function getSortOption(value: string): SortOption {
 }
 
 function matchesScopeFilter(deadline: EnrichedDeadline, scope: ScopeFilter) {
-  if (scope === "history") return deadline.workflowStatus === "archived";
-  if (deadline.workflowStatus === "archived") return false;
   if (scope === "team") return deadline.visibility === "team";
   if (scope === "personal") return deadline.visibility === "personal";
   if (scope === "in_progress") return deadline.workflowStatus === "in_progress";
@@ -522,7 +519,7 @@ export default async function DeadlinesPage({
   ).length;
 
   const categories = Array.from(
-    new Set(enrichedDeadlines.map((deadline) => deadline.categoryLabel))
+    new Set(activeDeadlines.map((deadline) => deadline.categoryLabel))
   ).sort((firstCategory, secondCategory) =>
     firstCategory.localeCompare(secondCategory, "fr", { sensitivity: "base" })
   );
@@ -532,7 +529,7 @@ export default async function DeadlinesPage({
     : "all";
 
   const filteredDeadlines = sortDeadlines(
-    enrichedDeadlines.filter((deadline) => {
+    activeDeadlines.filter((deadline) => {
       const searchableContent = [
         deadline.title,
         deadline.categoryLabel,
@@ -599,6 +596,15 @@ export default async function DeadlinesPage({
     monthFilter,
   });
   const hasActiveFilters = activeFilters.length > 0 || sortOption !== "due_asc";
+  const filterFormKey = [
+    searchQuery,
+    scopeFilter,
+    statusFilter,
+    safeCategoryFilter,
+    yearFilter,
+    monthFilter,
+    sortOption,
+  ].join("|");
   const exportParams = new URLSearchParams();
 
   if (searchQuery) exportParams.set("q", searchQuery);
@@ -705,9 +711,12 @@ export default async function DeadlinesPage({
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
                     {documentCount} document{documentCount > 1 ? "s" : ""}
                   </span>
-                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
+                  <Link
+                    href="/deadlines/history"
+                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                  >
                     {archivedCount} en historique
-                  </span>
+                  </Link>
                 </div>
               </div>
 
@@ -787,7 +796,7 @@ export default async function DeadlinesPage({
             <DeadlineOnboardingEmptyState embedded variant="deadlines" />
           ) : (
             <>
-              <details className="border-b border-white/10 bg-slate-950/20 group">
+              <details key={filterFormKey} className="border-b border-white/10 bg-slate-950/20 group">
                 <summary className="flex cursor-pointer list-none flex-col gap-3 p-5 transition hover:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between sm:p-6 [&::-webkit-details-marker]:hidden">
                   <div>
                     <p className="text-sm font-bold text-white">Filtres et tri</p>
@@ -974,13 +983,8 @@ export default async function DeadlinesPage({
                 </form>
               </details>
 
-              {scopeFilter === "history" ? (
-            <div className="border-b border-white/10 bg-slate-950/35 px-5 py-4 text-sm leading-6 text-slate-300 sm:px-6">
-              Vous consultez l’historique : les échéances personnelles marquées comme faites et les échéances équipe validées par un administrateur n’envoient plus de rappels.
-            </div>
-          ) : null}
 
-          {filteredCount === 0 ? (
+              {filteredCount === 0 ? (
                 <div className="p-8 text-center sm:p-12">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
                     <span className="h-3 w-3 rounded-full bg-blue-300 shadow-[0_0_24px_rgba(147,197,253,0.85)]" />

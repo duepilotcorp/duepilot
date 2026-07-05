@@ -9,7 +9,7 @@ type AppHeaderProps = {
   organizationName?: string | null;
   organizationRole?: OrganizationMemberRole | null;
   isAdminUser?: boolean;
-  active?: "dashboard" | "deadlines" | "new" | "account" | "organization" | "admin";
+  active?: "dashboard" | "deadlines" | "history" | "new" | "account" | "organization" | "admin";
   exportHref?: string;
 };
 
@@ -39,6 +39,7 @@ export default function AppHeader({
   const organizationLabel = canManageOrganization(organizationRole)
     ? "Organisation"
     : "Mon équipe";
+  const showDeadlinesLink = active !== "deadlines";
 
   return (
     <header className="relative z-50 rounded-[1.75rem] border border-white/10 bg-slate-950/70 p-3 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
@@ -59,9 +60,11 @@ export default function AppHeader({
 
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between lg:justify-end">
           <nav className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end" aria-label="Navigation principale">
-            <Link href="/deadlines" className={getNavClassName(active === "deadlines")}>
-              Échéances
-            </Link>
+            {showDeadlinesLink ? (
+              <Link href="/deadlines" className={getNavClassName(false)}>
+                Échéances
+              </Link>
+            ) : null}
             <Link href="/deadlines/new" className={getNavClassName(active === "new")}>
               Nouvelle échéance
             </Link>
@@ -119,6 +122,14 @@ export default function AppHeader({
                   className="rounded-2xl px-3 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.05] hover:text-white"
                 >
                   {organizationLabel}
+                </Link>
+                <Link
+                  href="/deadlines/history"
+                  className={`rounded-2xl px-3 py-2.5 text-sm font-semibold transition hover:bg-white/[0.05] hover:text-white ${
+                    active === "history" ? "bg-white/[0.06] text-white" : "text-slate-200"
+                  }`}
+                >
+                  Historique des échéances
                 </Link>
                 {isAdminUser ? (
                   <Link
