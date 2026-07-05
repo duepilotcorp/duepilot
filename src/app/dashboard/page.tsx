@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import DeadlineOnboardingEmptyState from "@/components/DeadlineOnboardingEmptyState";
 import LogoutButton from "@/components/LogoutButton";
 import { getDeadlineDocumentsByDeadlineId } from "@/lib/deadline-documents-server";
+import { ensureUserOrganization } from "@/lib/organizations";
 import { isUserAdmin } from "@/lib/user-roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -174,6 +175,11 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  const userOrganization = await ensureUserOrganization({
+    userId: user.id,
+    email: user.email,
+  });
+
   const { data: deadlines, error } = await supabase
     .from("deadlines")
     .select("id, title, category, due_date, created_at, user_id")
@@ -329,6 +335,12 @@ export default async function DashboardPage() {
             >
               Nouvelle échéance
             </Link>
+            <Link
+              href="/settings/company"
+              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+            >
+              Entreprise
+            </Link>
             {isAdminUser ? (
               <Link
                 href="/admin/beta-requests"
@@ -352,7 +364,7 @@ Vue d’ensemble
                 </div>
 
                 <p className="mt-5 text-sm font-medium text-slate-300">
-                  Connecté : {user.email ?? "utilisateur DuePilot"}
+                  Entreprise : {userOrganization?.organization.name ?? "Mon entreprise"}
                 </p>
 
                 <h1 className="mt-3 max-w-3xl text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">

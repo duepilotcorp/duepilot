@@ -42,6 +42,7 @@ export async function proxy(request: NextRequest) {
   const isProtectedPage =
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/deadlines") ||
+    pathname.startsWith("/settings") ||
     isAdminPage;
 
   if (!user && isProtectedPage) {

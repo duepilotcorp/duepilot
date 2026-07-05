@@ -202,6 +202,19 @@ export default function NewDeadlinePage() {
       return;
     }
 
+    const { data: activeMembership, error: membershipError } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (membershipError) {
+      console.error(membershipError);
+    }
+
     const { data: createdDeadline, error } = await supabase
       .from("deadlines")
       .insert({
@@ -209,6 +222,7 @@ export default function NewDeadlinePage() {
         category: category.trim(),
         due_date: dueDate,
         user_id: user.id,
+        organization_id: activeMembership?.organization_id ?? null,
         notification_days: selectedNotificationDays,
       })
       .select("id")
