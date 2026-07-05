@@ -57,7 +57,7 @@ export async function getUserOrganization(userId: string | null | undefined) {
     .select("organization_id, user_id, role, status")
     .eq("user_id", userId)
     .eq("status", "active")
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(1);
 
   if (membershipError) {

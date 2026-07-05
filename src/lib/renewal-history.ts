@@ -107,7 +107,6 @@ export async function getDeadlineRenewalHistory({
   const { data, error } = await supabase
     .from("renewal_history")
     .select(RENEWAL_HISTORY_SELECT_FIELDS)
-    .eq("user_id", userId)
     .eq("deadline_id", deadlineId)
     .order("created_at", { ascending: false })
     .limit(limit);

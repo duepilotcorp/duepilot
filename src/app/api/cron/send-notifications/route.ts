@@ -87,7 +87,7 @@ export async function GET(request: Request) {
 
   const { data: deadlines, error } = await supabaseAdmin
     .from("deadlines")
-    .select("id, title, category, due_date, user_id, notification_days")
+    .select("id, title, category, due_date, user_id, notification_days, workflow_status")
     .order("due_date", { ascending: true });
 
   if (error) {
@@ -97,6 +97,10 @@ export async function GET(request: Request) {
   const deadlinesToNotify = [];
 
   for (const deadline of deadlines) {
+    if (deadline.workflow_status === "archived") {
+      continue;
+    }
+
     const daysUntilDueDate = getDaysUntilDueDate(deadline.due_date);
     const notificationDays = deadline.notification_days ?? [30, 7, 1];
 

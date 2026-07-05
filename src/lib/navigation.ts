@@ -1,7 +1,7 @@
 const DEFAULT_REDIRECT_PATH = "/dashboard";
 const REDIRECT_ORIGIN = "https://duepilot.local";
 
-const ALLOWED_REDIRECT_ROOTS = ["/dashboard", "/deadlines"];
+const ALLOWED_REDIRECT_ROOTS = ["/dashboard", "/deadlines", "/settings", "/team/invitations"];
 
 function isAllowedRedirectPath(pathname: string) {
   return ALLOWED_REDIRECT_ROOTS.some(

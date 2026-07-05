@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import DeadlineDocumentField from "@/components/DeadlineDocumentField";
 import DeadlineTemplatePicker from "@/components/DeadlineTemplatePicker";
 import NotificationDaysSelector, {
@@ -10,6 +10,7 @@ import NotificationDaysSelector, {
   normalizeNotificationDays,
 } from "@/components/NotificationDaysSelector";
 import { createActivityLogs } from "@/lib/activity-logs";
+import { canManageTeamDeadlines, type DeadlineVisibility } from "@/lib/deadline-access";
 import { saveDeadlineDocument } from "@/lib/deadline-document-actions";
 import type { DeadlineTemplate } from "@/lib/deadline-templates";
 import { createClient } from "@/lib/supabase/client";
@@ -141,6 +142,8 @@ export default function NewDeadlinePage() {
   const [notificationDays, setNotificationDays] = useState<number[]>(
     DEFAULT_NOTIFICATION_DAYS
   );
+  const [visibility, setVisibility] = useState<DeadlineVisibility>("personal");
+  const [canCreateTeamDeadline, setCanCreateTeamDeadline] = useState(false);
   const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(
     null
   );
@@ -158,6 +161,37 @@ export default function NewDeadlinePage() {
   const dateInsight = useMemo(() => getDateInsight(dueDate), [dueDate]);
   const deadlinePreviewTitle = title.trim() || "Nouvelle échéance";
   const deadlinePreviewCategory = category.trim() || "Catégorie non définie";
+
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadMembership() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("organization_members")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!isMounted) return;
+
+      const canCreateTeam = canManageTeamDeadlines(data?.role);
+      setCanCreateTeamDeadline(canCreateTeam);
+      if (!canCreateTeam) setVisibility("personal");
+    }
+
+    loadMembership();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleTemplateSelect = (template: DeadlineTemplate) => {
     if (isLoading) return;
@@ -204,16 +238,20 @@ export default function NewDeadlinePage() {
 
     const { data: activeMembership, error: membershipError } = await supabase
       .from("organization_members")
-      .select("organization_id")
+      .select("organization_id, role")
       .eq("user_id", user.id)
       .eq("status", "active")
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (membershipError) {
       console.error(membershipError);
     }
+
+    const canCreateTeam = canManageTeamDeadlines(activeMembership?.role);
+    const safeVisibility: DeadlineVisibility =
+      visibility === "team" && canCreateTeam ? "team" : "personal";
 
     const { data: createdDeadline, error } = await supabase
       .from("deadlines")
@@ -223,6 +261,8 @@ export default function NewDeadlinePage() {
         due_date: dueDate,
         user_id: user.id,
         organization_id: activeMembership?.organization_id ?? null,
+        visibility: safeVisibility,
+        workflow_status: "open",
         notification_days: selectedNotificationDays,
       })
       .select("id")
@@ -272,6 +312,7 @@ export default function NewDeadlinePage() {
           due_date: dueDate,
           notification_days: selectedNotificationDays,
           template: appliedTemplateName || null,
+          visibility: safeVisibility,
         },
       },
       ...(selectedDocumentFile
@@ -341,6 +382,7 @@ export default function NewDeadlinePage() {
                     ? `Modèle : ${appliedTemplateName}`
                     : "Aucun modèle appliqué"}
                 </p>
+                <p>{visibility === "team" ? "Portée : équipe" : "Portée : personnelle"}</p>
                 <p>
                   {selectedDocumentFile
                     ? selectedDocumentFile.name
@@ -353,6 +395,46 @@ export default function NewDeadlinePage() {
 
         <form onSubmit={handleSubmit} className="mt-8 grid gap-6 lg:grid-cols-[1fr_22rem]">
           <div className="space-y-6">
+            <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-2xl shadow-slate-950/20 sm:p-6">
+              <div className="flex flex-col gap-2 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-white">Portée de l’échéance</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-400">Choisissez si cette échéance reste personnelle ou si elle concerne toute l’équipe.</p>
+                </div>
+                <span className="inline-flex w-fit rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300">Base équipe</span>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setVisibility("personal")}
+                  disabled={isLoading}
+                  className={`rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                    visibility === "personal"
+                      ? "border-violet-400/40 bg-violet-400/10 text-violet-100"
+                      : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.06]"
+                  }`}
+                >
+                  <span className="block text-sm font-bold text-white">Personnelle</span>
+                  <span className="mt-2 block text-sm leading-6 text-slate-400">Visible uniquement par vous. Les autres membres ne la verront pas.</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVisibility("team")}
+                  disabled={isLoading || !canCreateTeamDeadline}
+                  className={`rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    visibility === "team"
+                      ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100"
+                      : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.06]"
+                  }`}
+                >
+                  <span className="block text-sm font-bold text-white">Équipe</span>
+                  <span className="mt-2 block text-sm leading-6 text-slate-400">Visible par l’entreprise. Réservé aux propriétaires et administrateurs.</span>
+                </button>
+              </div>
+            </section>
+
             <DeadlineTemplatePicker
               selectedTemplateId={selectedTemplateId}
               onSelectTemplate={handleTemplateSelect}

@@ -12,6 +12,12 @@ export type ActivityLogAction =
   | "deadline.due_date_updated"
   | "deadline.reminders_updated"
   | "deadline.renewed"
+  | "deadline.claimed"
+  | "deadline.unclaimed"
+  | "deadline.completed"
+  | "deadline.personal_completed"
+  | "deadline.validated"
+  | "deadline.reopened"
   | "document.added"
   | "document.replaced"
   | "document.removed"
@@ -115,7 +121,6 @@ export async function getDeadlineActivityLogs({
   const { data, error } = await supabase
     .from("activity_logs")
     .select(ACTIVITY_LOG_SELECT_FIELDS)
-    .eq("user_id", userId)
     .eq("deadline_id", deadlineId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -137,8 +142,21 @@ export function getActivityLogTone(action: string) {
     return "border-emerald-400/20 bg-emerald-400/10 text-emerald-100";
   }
 
-  if (action === "deadline.renewed") {
+  if (
+    action === "deadline.renewed" ||
+    action === "deadline.completed" ||
+    action === "deadline.personal_completed" ||
+    action === "deadline.validated"
+  ) {
     return "border-emerald-400/20 bg-emerald-400/10 text-emerald-100";
+  }
+
+  if (action === "deadline.claimed") {
+    return "border-yellow-400/20 bg-yellow-400/10 text-yellow-100";
+  }
+
+  if (action === "deadline.reopened" || action === "deadline.unclaimed") {
+    return "border-blue-400/20 bg-blue-400/10 text-blue-100";
   }
 
   if (action === "deadline.deleted") {

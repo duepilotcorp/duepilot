@@ -3,11 +3,27 @@ import { notFound, redirect } from "next/navigation";
 import ActivityLogList from "@/components/ActivityLogList";
 import DeleteDeadlineButton from "@/components/DeleteDeadlineButton";
 import RenewDeadlineForm from "@/components/RenewDeadlineForm";
+import TeamDeadlineWorkflowActions from "@/components/TeamDeadlineWorkflowActions";
 import RenewalHistoryList from "@/components/RenewalHistoryList";
 import { getDeadlineActivityLogs } from "@/lib/activity-logs";
+import {
+  buildDeadlineAccessOrFilter,
+  canContributeToTeamDeadlines,
+  canEditDeadline,
+  canDeleteDeadline,
+  canManageTeamDeadlines,
+  DEADLINE_VISIBILITY_LABELS,
+  getDeadlineWorkflowLabel,
+  getDeadlineVisibilityBadgeClassName,
+  getDeadlineWorkflowBadgeClassName,
+  normalizeDeadlineVisibility,
+  normalizeDeadlineWorkflowStatus,
+} from "@/lib/deadline-access";
 import { formatFileSize } from "@/lib/deadline-documents";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
 import { getDeadlineRenewalHistory } from "@/lib/renewal-history";
+import { ensureUserOrganization } from "@/lib/organizations";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +42,15 @@ type Deadline = {
   notification_days: number[] | null;
   created_at: string;
   user_id: string | null;
+  organization_id: string | null;
+  visibility: string | null;
+  workflow_status: string | null;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  completed_by: string | null;
+  completed_at: string | null;
+  archived_by: string | null;
+  archived_at: string | null;
 };
 
 type NotificationLog = {
@@ -182,6 +207,19 @@ function normalizeNotificationDays(days: number[] | null) {
   ).sort((firstDay, secondDay) => secondDay - firstDay);
 }
 
+async function getUserEmail(userId: string | null) {
+  if (!userId) return null;
+
+  const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
+
+  if (error) {
+    console.warn(error);
+    return null;
+  }
+
+  return data.user?.email ?? null;
+}
+
 function formatReminder(day: number) {
   if (day === 0) return "Jour J";
   return `J-${day}`;
@@ -208,11 +246,21 @@ export default async function DeadlineDetailPage({
     redirect("/login");
   }
 
+  const userOrganization = await ensureUserOrganization({
+    userId: user.id,
+    email: user.email,
+  });
+
   const { data: deadline, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, notification_days, created_at, user_id")
+    .select("id, title, category, due_date, notification_days, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, claimed_at, completed_by, completed_at, archived_by, archived_at")
     .eq("id", deadlineId)
-    .eq("user_id", user.id)
+    .or(
+      buildDeadlineAccessOrFilter({
+        userId: user.id,
+        organizationId: userOrganization?.organization.id,
+      })
+    )
     .maybeSingle();
 
   if (error) {
@@ -255,6 +303,32 @@ export default async function DeadlineDetailPage({
   const normalizedNotificationDays = normalizeNotificationDays(
     typedDeadline.notification_days
   );
+  const visibility = normalizeDeadlineVisibility(typedDeadline.visibility);
+  const workflowStatus = normalizeDeadlineWorkflowStatus(typedDeadline.workflow_status);
+  const visibilityLabel = DEADLINE_VISIBILITY_LABELS[visibility];
+  const workflowLabel = getDeadlineWorkflowLabel({ status: workflowStatus, visibility });
+  const organizationRole = userOrganization?.membership.role;
+  const canManageTeam = canManageTeamDeadlines(organizationRole);
+  const canContributeTeam = canContributeToTeamDeadlines(organizationRole);
+  const canEditCurrentDeadline = canEditDeadline({
+    visibility,
+    ownerId: typedDeadline.user_id,
+    userId: user.id,
+    organizationRole,
+    workflowStatus,
+  });
+  const canDeleteCurrentDeadline = canDeleteDeadline({
+    visibility,
+    ownerId: typedDeadline.user_id,
+    userId: user.id,
+    organizationRole,
+  });
+  const isOwner = typedDeadline.user_id === user.id;
+  const claimedByCurrentUser = typedDeadline.claimed_by === user.id;
+  const completedByCurrentUser = typedDeadline.completed_by === user.id;
+  const claimedByEmail = await getUserEmail(typedDeadline.claimed_by);
+  const completedByEmail = await getUserEmail(typedDeadline.completed_by);
+
   const document = await getDeadlineDocumentByDeadlineId({
     supabase,
     userId: user.id,
@@ -265,7 +339,6 @@ export default async function DeadlineDetailPage({
     .from("notification_logs")
     .select("id, created_at, notification_day, due_date")
     .eq("deadline_id", typedDeadline.id)
-    .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(8)
     .returns<NotificationLog[]>();
@@ -343,19 +416,27 @@ export default async function DeadlineDetailPage({
             >
               Rapport PDF
             </Link>
-            <Link
-              href={`/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
-              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-            >
-              Modifier
-            </Link>
-            <DeleteDeadlineButton
-              id={typedDeadline.id}
-              title={typedDeadline.title}
-              category={typedDeadline.category}
-              documentFilePath={document?.file_path}
-              redirectTo="/deadlines"
-            />
+            {canDeleteCurrentDeadline || canEditCurrentDeadline ? (
+              <>
+                {canEditCurrentDeadline ? (
+                  <Link
+                    href={`/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
+                    className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                  >
+                    Modifier
+                  </Link>
+                ) : null}
+                {canDeleteCurrentDeadline ? (
+                  <DeleteDeadlineButton
+                    id={typedDeadline.id}
+                    title={typedDeadline.title}
+                    category={typedDeadline.category}
+                    documentFilePath={document?.file_path}
+                    redirectTo="/deadlines"
+                  />
+                ) : null}
+              </>
+            ) : null}
           </div>
         </header>
 
@@ -386,6 +467,12 @@ Fiche échéance
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
                     Créée le {formattedCreatedAt}
+                  </span>
+                  <span className={`rounded-full border px-3 py-1 ${getDeadlineVisibilityBadgeClassName(visibility)}`}>
+                    {visibilityLabel}
+                  </span>
+                  <span className={`rounded-full border px-3 py-1 ${getDeadlineWorkflowBadgeClassName(workflowStatus)}`}>
+                    {workflowLabel}
                   </span>
                 </div>
               </div>
@@ -435,12 +522,14 @@ Fiche échéance
                     rappels automatiques.
                   </p>
                 </div>
-                <Link
-                  href={`/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
-                  className="inline-flex justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
-                >
-                  Modifier l’échéance
-                </Link>
+                {canEditCurrentDeadline ? (
+                  <Link
+                    href={`/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
+                    className="inline-flex justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
+                  >
+                    Modifier l’échéance
+                  </Link>
+                ) : null}
               </div>
 
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -474,6 +563,22 @@ Fiche échéance
                   </p>
                   <p className="mt-2 font-semibold text-slate-100">
                     {formattedCreatedAt}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Portée
+                  </p>
+                  <p className="mt-2 font-semibold text-slate-100">
+                    {visibilityLabel}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Suivi équipe
+                  </p>
+                  <p className="mt-2 font-semibold text-slate-100">
+                    {visibility === "team" ? workflowLabel : "Non partagé"}
                   </p>
                 </div>
               </div>
@@ -606,12 +711,14 @@ Fiche échéance
                     Ajoutez une attestation, un contrat ou un certificat PDF
                     depuis la modification de l’échéance.
                   </p>
-                  <Link
-                    href={`/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
-                    className="mt-5 inline-flex justify-center rounded-xl border border-blue-400/25 bg-blue-400/10 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white"
-                  >
-                    Ajouter un PDF
-                  </Link>
+                  {canEditCurrentDeadline ? (
+                    <Link
+                      href={`/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
+                      className="mt-5 inline-flex justify-center rounded-xl border border-blue-400/25 bg-blue-400/10 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white"
+                    >
+                      Ajouter un PDF
+                    </Link>
+                  ) : null}
                 </div>
               )}
             </section>
@@ -632,6 +739,67 @@ Fiche échéance
             </section>
 
           </aside>
+        </section>
+
+
+        <section className={`mt-6 rounded-[2rem] border p-6 shadow-2xl shadow-slate-950/20 sm:p-7 ${
+          visibility === "team"
+            ? "border-cyan-400/20 bg-cyan-400/10"
+            : "border-violet-400/20 bg-violet-400/10"
+        }`}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="inline-flex rounded-full border border-white/15 bg-white/[0.08] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                {visibility === "team" ? "Suivi équipe" : "Suivi personnel"}
+              </div>
+              <h2 className="mt-4 text-2xl font-bold text-white">
+                {visibility === "team" ? "Qui travaille sur cette échéance ?" : "Où en est cette échéance ?"}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-100/80">
+                {visibility === "team"
+                  ? "Les membres peuvent indiquer qu’ils s’en occupent ou que l’action est faite. Les administrateurs valident ensuite pour déplacer l’échéance dans l’historique."
+                  : "Vous pouvez marquer cette échéance comme en cours, puis comme faite. Une échéance personnelle faite part directement dans l’historique."}
+              </p>
+            </div>
+            <span className={`inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold ${getDeadlineWorkflowBadgeClassName(workflowStatus)}`}>
+              {workflowLabel}
+            </span>
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_1fr]">
+            <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">En cours par</p>
+              <p className="mt-2 font-semibold text-white">
+                {claimedByEmail ?? "Personne pour le moment"}
+              </p>
+              {typedDeadline.claimed_at ? (
+                <p className="mt-1 text-xs text-slate-300/70">{formatDateTime(typedDeadline.claimed_at)}</p>
+              ) : null}
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Faite par</p>
+              <p className="mt-2 font-semibold text-white">
+                {completedByEmail ?? "Pas encore indiquée comme faite"}
+              </p>
+              {typedDeadline.completed_at ? (
+                <p className="mt-1 text-xs text-slate-300/70">{formatDateTime(typedDeadline.completed_at)}</p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <TeamDeadlineWorkflowActions
+              deadlineId={typedDeadline.id}
+              status={workflowStatus}
+              visibility={visibility}
+              canContribute={canContributeTeam}
+              canManage={canManageTeam}
+              isOwner={isOwner}
+              claimedByCurrentUser={claimedByCurrentUser}
+              completedByCurrentUser={completedByCurrentUser}
+            />
+          </div>
         </section>
 
         <section className="mt-6 rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20 sm:p-7">
@@ -656,16 +824,18 @@ Fiche échéance
           </div>
         </section>
 
-        <RenewDeadlineForm
-          deadline={{
+        {canEditCurrentDeadline ? (
+          <RenewDeadlineForm
+            deadline={{
             id: typedDeadline.id,
             title: typedDeadline.title,
             category: typedDeadline.category,
             due_date: typedDeadline.due_date,
             notification_days: typedDeadline.notification_days,
           }}
-          document={document}
-        />
+            document={document}
+          />
+        ) : null}
       </div>
     </main>
   );

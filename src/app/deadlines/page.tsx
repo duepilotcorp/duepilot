@@ -5,6 +5,18 @@ import DeleteDeadlineButton from "@/components/DeleteDeadlineButton";
 import LogoutButton from "@/components/LogoutButton";
 import { getDeadlineDocumentsByDeadlineId } from "@/lib/deadline-documents-server";
 import type { DeadlineDocument } from "@/lib/deadline-documents";
+import {
+  buildDeadlineAccessOrFilter,
+  DEADLINE_VISIBILITY_LABELS,
+  getDeadlineWorkflowLabel,
+  getDeadlineVisibilityBadgeClassName,
+  getDeadlineWorkflowBadgeClassName,
+  normalizeDeadlineVisibility,
+  normalizeDeadlineWorkflowStatus,
+  type DeadlineVisibility,
+  type DeadlineWorkflowStatus,
+} from "@/lib/deadline-access";
+import { ensureUserOrganization } from "@/lib/organizations";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +28,11 @@ type Deadline = {
   due_date: string;
   created_at: string;
   user_id: string | null;
+  organization_id: string | null;
+  visibility: string | null;
+  workflow_status: string | null;
+  claimed_by: string | null;
+  completed_by: string | null;
 };
 
 type EnrichedDeadline = Deadline & {
@@ -28,14 +45,30 @@ type EnrichedDeadline = Deadline & {
   indicatorClassName: string;
   priorityLabel: string;
   document: DeadlineDocument | null;
+  visibility: DeadlineVisibility;
+  workflowStatus: DeadlineWorkflowStatus;
+  visibilityLabel: string;
+  workflowLabel: string;
+  visibilityClassName: string;
+  workflowClassName: string;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
 type StatusFilter = "all" | "late" | "today" | "next7" | "next30" | "safe";
+type ScopeFilter = "all" | "team" | "personal" | "in_progress" | "completed" | "history";
 type SortOption = "due_asc" | "due_desc" | "title_asc" | "created_desc";
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
+const SCOPE_FILTERS: { value: ScopeFilter; label: string }[] = [
+  { value: "all", label: "Actives" },
+  { value: "team", label: "Équipe" },
+  { value: "personal", label: "Personnel" },
+  { value: "in_progress", label: "En cours" },
+  { value: "completed", label: "À valider" },
+  { value: "history", label: "Historique" },
+];
+
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "Tous les statuts" },
   { value: "late", label: "En retard" },
@@ -50,6 +83,22 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "due_desc", label: "Date la plus lointaine" },
   { value: "title_asc", label: "Nom A-Z" },
   { value: "created_desc", label: "Ajout récent" },
+];
+
+const MONTH_FILTERS = [
+  { value: "", label: "Tous les mois" },
+  { value: "01", label: "Janvier" },
+  { value: "02", label: "Février" },
+  { value: "03", label: "Mars" },
+  { value: "04", label: "Avril" },
+  { value: "05", label: "Mai" },
+  { value: "06", label: "Juin" },
+  { value: "07", label: "Juillet" },
+  { value: "08", label: "Août" },
+  { value: "09", label: "Septembre" },
+  { value: "10", label: "Octobre" },
+  { value: "11", label: "Novembre" },
+  { value: "12", label: "Décembre" },
 ];
 
 function getTodayAtMidnight() {
@@ -213,6 +262,12 @@ function getSearchParam(params: SearchParams, key: string) {
   return value ?? "";
 }
 
+function getScopeFilter(value: string): ScopeFilter {
+  return SCOPE_FILTERS.some((filter) => filter.value === value)
+    ? (value as ScopeFilter)
+    : "all";
+}
+
 function getStatusFilter(value: string): StatusFilter {
   return STATUS_FILTERS.some((filter) => filter.value === value)
     ? (value as StatusFilter)
@@ -223,6 +278,16 @@ function getSortOption(value: string): SortOption {
   return SORT_OPTIONS.some((option) => option.value === value)
     ? (value as SortOption)
     : "due_asc";
+}
+
+function matchesScopeFilter(deadline: EnrichedDeadline, scope: ScopeFilter) {
+  if (scope === "history") return deadline.workflowStatus === "archived";
+  if (deadline.workflowStatus === "archived") return false;
+  if (scope === "team") return deadline.visibility === "team";
+  if (scope === "personal") return deadline.visibility === "personal";
+  if (scope === "in_progress") return deadline.workflowStatus === "in_progress";
+  if (scope === "completed") return deadline.workflowStatus === "completed";
+  return true;
 }
 
 function matchesStatusFilter(deadline: EnrichedDeadline, status: StatusFilter) {
@@ -271,15 +336,27 @@ function sortDeadlines(deadlines: EnrichedDeadline[], sort: SortOption) {
 function buildFilterSummary({
   searchQuery,
   statusFilter,
+  scopeFilter,
   categoryFilter,
+  yearFilter,
+  monthFilter,
 }: {
   searchQuery: string;
   statusFilter: StatusFilter;
+  scopeFilter: ScopeFilter;
   categoryFilter: string;
+  yearFilter: string;
+  monthFilter: string;
 }) {
   const activeFilters: string[] = [];
 
   if (searchQuery) activeFilters.push(`Recherche : “${searchQuery}”`);
+  if (scopeFilter !== "all") {
+    activeFilters.push(
+      SCOPE_FILTERS.find((filter) => filter.value === scopeFilter)?.label ??
+        "Portée filtrée"
+    );
+  }
   if (statusFilter !== "all") {
     activeFilters.push(
       STATUS_FILTERS.find((filter) => filter.value === statusFilter)?.label ??
@@ -287,6 +364,13 @@ function buildFilterSummary({
     );
   }
   if (categoryFilter !== "all") activeFilters.push(categoryFilter);
+  if (yearFilter) activeFilters.push(`Année : ${yearFilter}`);
+  if (monthFilter) {
+    activeFilters.push(
+      MONTH_FILTERS.find((month) => month.value === monthFilter)?.label ??
+        `Mois : ${monthFilter}`
+    );
+  }
 
   return activeFilters;
 }
@@ -302,8 +386,13 @@ export default async function DeadlinesPage({
   const rawSearchQuery = getSearchParam(params, "q");
   const searchQuery = rawSearchQuery.trim().slice(0, 80);
   const normalizedSearchQuery = searchQuery.toLocaleLowerCase("fr-FR");
+  const scopeFilter = getScopeFilter(getSearchParam(params, "scope"));
   const statusFilter = getStatusFilter(getSearchParam(params, "status"));
   const categoryFilter = getSearchParam(params, "category") || "all";
+  const yearFilter = getSearchParam(params, "year").replace(/[^0-9]/g, "").slice(0, 4);
+  const monthFilter = MONTH_FILTERS.some((month) => month.value === getSearchParam(params, "month"))
+    ? getSearchParam(params, "month")
+    : "";
   const sortOption = getSortOption(getSearchParam(params, "sort"));
 
   const {
@@ -315,10 +404,23 @@ export default async function DeadlinesPage({
     redirect("/login");
   }
 
+  const userOrganization = await ensureUserOrganization({
+    userId: user.id,
+    email: user.email,
+  });
+  const canManageTeam =
+    userOrganization?.membership.role === "owner" ||
+    userOrganization?.membership.role === "admin";
+
   const { data: deadlines, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, created_at, user_id")
-    .eq("user_id", user.id)
+    .select("id, title, category, due_date, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, completed_by")
+    .or(
+      buildDeadlineAccessOrFilter({
+        userId: user.id,
+        organizationId: userOrganization?.organization.id,
+      })
+    )
     .order("due_date", { ascending: true })
     .returns<Deadline[]>();
 
@@ -346,9 +448,17 @@ export default async function DeadlinesPage({
   const enrichedDeadlines: EnrichedDeadline[] = deadlineList.map((deadline) => {
     const daysUntilDeadline = getDaysUntilDeadline(deadline.due_date, today);
     const categoryLabel = deadline.category?.trim() || "Sans catégorie";
+    const visibility = normalizeDeadlineVisibility(deadline.visibility);
+    const workflowStatus = normalizeDeadlineWorkflowStatus(deadline.workflow_status);
 
     return {
       ...deadline,
+      visibility,
+      workflowStatus,
+      visibilityLabel: DEADLINE_VISIBILITY_LABELS[visibility],
+      workflowLabel: getDeadlineWorkflowLabel({ status: workflowStatus, visibility }),
+      visibilityClassName: getDeadlineVisibilityBadgeClassName(visibility),
+      workflowClassName: getDeadlineWorkflowBadgeClassName(workflowStatus),
       categoryLabel,
       daysUntilDeadline,
       formattedDate: formatDeadlineDate(deadline.due_date),
@@ -361,22 +471,28 @@ export default async function DeadlinesPage({
     };
   });
 
-  const total = enrichedDeadlines.length;
-  const lateCount = enrichedDeadlines.filter(
+  const activeDeadlines = enrichedDeadlines.filter(
+    (deadline) => deadline.workflowStatus !== "archived"
+  );
+  const archivedDeadlines = enrichedDeadlines.filter(
+    (deadline) => deadline.workflowStatus === "archived"
+  );
+  const total = activeDeadlines.length;
+  const lateCount = activeDeadlines.filter(
     (deadline) => deadline.daysUntilDeadline < 0
   ).length;
-  const todayCount = enrichedDeadlines.filter(
+  const todayCount = activeDeadlines.filter(
     (deadline) => deadline.daysUntilDeadline === 0
   ).length;
-  const next7Count = enrichedDeadlines.filter(
+  const next7Count = activeDeadlines.filter(
     (deadline) =>
       deadline.daysUntilDeadline >= 0 && deadline.daysUntilDeadline <= 7
   ).length;
-  const next30Count = enrichedDeadlines.filter(
+  const next30Count = activeDeadlines.filter(
     (deadline) =>
       deadline.daysUntilDeadline >= 0 && deadline.daysUntilDeadline <= 30
   ).length;
-  const safeCount = enrichedDeadlines.filter(
+  const safeCount = activeDeadlines.filter(
     (deadline) => deadline.daysUntilDeadline > 30
   ).length;
 
@@ -408,18 +524,28 @@ export default async function DeadlinesPage({
         : true;
       const matchesCategory =
         safeCategoryFilter === "all" || deadline.categoryLabel === safeCategoryFilter;
+      const deadlineDate = parseLocalDate(deadline.due_date);
+      const matchesYear = yearFilter
+        ? String(deadlineDate.getFullYear()) === yearFilter
+        : true;
+      const matchesMonth = monthFilter
+        ? String(deadlineDate.getMonth() + 1).padStart(2, "0") === monthFilter
+        : true;
 
       return (
         matchesSearch &&
         matchesCategory &&
+        matchesYear &&
+        matchesMonth &&
+        matchesScopeFilter(deadline, scopeFilter) &&
         matchesStatusFilter(deadline, statusFilter)
       );
     }),
     sortOption
   );
 
-  const nextDeadline = enrichedDeadlines[0];
-  const urgentDeadlines = enrichedDeadlines.filter(
+  const nextDeadline = activeDeadlines[0];
+  const urgentDeadlines = activeDeadlines.filter(
     (deadline) => deadline.daysUntilDeadline <= 30
   );
   const insight = getDeadlineInsight({
@@ -430,19 +556,30 @@ export default async function DeadlinesPage({
   });
 
   const categoryCount = categories.length;
-  const documentCount = enrichedDeadlines.filter((deadline) => deadline.document).length;
+  const documentCount = activeDeadlines.filter((deadline) => deadline.document).length;
+  const teamCount = activeDeadlines.filter((deadline) => deadline.visibility === "team").length;
+  const personalCount = activeDeadlines.filter((deadline) => deadline.visibility === "personal").length;
+  const inProgressCount = activeDeadlines.filter((deadline) => deadline.workflowStatus === "in_progress").length;
+  const completedCount = activeDeadlines.filter((deadline) => deadline.workflowStatus === "completed").length;
+  const archivedCount = archivedDeadlines.length;
   const filteredCount = filteredDeadlines.length;
   const activeFilters = buildFilterSummary({
     searchQuery,
     statusFilter,
+    scopeFilter,
     categoryFilter: safeCategoryFilter,
+    yearFilter,
+    monthFilter,
   });
   const hasActiveFilters = activeFilters.length > 0 || sortOption !== "due_asc";
   const exportParams = new URLSearchParams();
 
   if (searchQuery) exportParams.set("q", searchQuery);
+  if (scopeFilter !== "all") exportParams.set("scope", scopeFilter);
   if (statusFilter !== "all") exportParams.set("status", statusFilter);
   if (safeCategoryFilter !== "all") exportParams.set("category", safeCategoryFilter);
+  if (yearFilter) exportParams.set("year", yearFilter);
+  if (monthFilter) exportParams.set("month", monthFilter);
   if (sortOption !== "due_asc") exportParams.set("sort", sortOption);
 
   const exportQueryString = exportParams.toString();
@@ -557,10 +694,16 @@ export default async function DeadlinesPage({
                     {categoryCount} catégorie{categoryCount > 1 ? "s" : ""}
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
-                    {urgentDeadlines.length} priorité{urgentDeadlines.length > 1 ? "s" : ""}
+                    {teamCount} équipe · {personalCount} perso
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
+                    {inProgressCount} en cours · {completedCount} à valider
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
                     {documentCount} document{documentCount > 1 ? "s" : ""}
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
+                    {archivedCount} en historique
                   </span>
                 </div>
               </div>
@@ -645,7 +788,7 @@ export default async function DeadlinesPage({
                 action="/deadlines"
                 className="border-b border-white/10 bg-slate-950/20 p-5 sm:p-6"
               >
-                <div className="grid gap-4 xl:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_auto] xl:items-end">
+                <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr_0.7fr_0.75fr_0.75fr_auto] xl:items-end">
                   <label className="block">
                     <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Recherche
@@ -657,6 +800,23 @@ export default async function DeadlinesPage({
                       placeholder="Nom, catégorie, statut…"
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-blue-400/50 focus:bg-white/[0.07]"
                     />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Portée
+                    </span>
+                    <select
+                      name="scope"
+                      defaultValue={scopeFilter}
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/50"
+                    >
+                      {SCOPE_FILTERS.map((filter) => (
+                        <option key={filter.value} value={filter.value}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
 
                   <label className="block">
@@ -689,6 +849,37 @@ export default async function DeadlinesPage({
                       {categories.map((category) => (
                         <option key={category} value={category}>
                           {category}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Année
+                    </span>
+                    <input
+                      name="year"
+                      defaultValue={yearFilter}
+                      inputMode="numeric"
+                      placeholder="Ex : 2026"
+                      maxLength={4}
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/50"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Mois
+                    </span>
+                    <select
+                      name="month"
+                      defaultValue={monthFilter}
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/50"
+                    >
+                      {MONTH_FILTERS.map((month) => (
+                        <option key={month.value || "all"} value={month.value}>
+                          {month.label}
                         </option>
                       ))}
                     </select>
@@ -751,7 +942,13 @@ export default async function DeadlinesPage({
                 </div>
               </form>
 
-              {filteredCount === 0 ? (
+              {scopeFilter === "history" ? (
+            <div className="border-b border-white/10 bg-slate-950/35 px-5 py-4 text-sm leading-6 text-slate-300 sm:px-6">
+              Vous consultez l’historique : les échéances personnelles marquées comme faites et les échéances équipe validées par un administrateur n’envoient plus de rappels.
+            </div>
+          ) : null}
+
+          {filteredCount === 0 ? (
                 <div className="p-8 text-center sm:p-12">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
                     <span className="h-3 w-3 rounded-full bg-blue-300 shadow-[0_0_24px_rgba(147,197,253,0.85)]" />
@@ -806,6 +1003,14 @@ export default async function DeadlinesPage({
                                   <p className="mt-1 text-sm text-slate-500">
                                     {deadline.priorityLabel}
                                   </p>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.visibilityClassName}`}>
+                                      {deadline.visibilityLabel}
+                                    </span>
+                                    <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.workflowClassName}`}>
+                                      {deadline.workflowLabel}
+                                    </span>
+                                  </div>
                                   {deadline.document ? (
                                     <Link
                                       href={`/deadlines/documents/${deadline.document.id}`}
@@ -843,19 +1048,23 @@ export default async function DeadlinesPage({
 
                             <td className="px-6 py-5">
                               <div className="flex justify-end gap-2">
-                                <Link
-                                  href={`/deadlines/edit/${deadline.id}`}
-                                  className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-                                >
-                                  Modifier
-                                </Link>
+                                {deadline.workflowStatus !== "archived" && (deadline.visibility === "personal" || canManageTeam) ? (
+                                  <>
+                                    <Link
+                                      href={`/deadlines/edit/${deadline.id}`}
+                                      className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                                    >
+                                      Modifier
+                                    </Link>
 
-                                <DeleteDeadlineButton
-                                  id={deadline.id}
-                                  title={deadline.title}
-                                  category={deadline.category}
-                                  documentFilePath={deadline.document?.file_path}
-                                />
+                                    <DeleteDeadlineButton
+                                      id={deadline.id}
+                                      title={deadline.title}
+                                      category={deadline.category}
+                                      documentFilePath={deadline.document?.file_path}
+                                    />
+                                  </>
+                                ) : null}
                               </div>
                             </td>
                           </tr>
@@ -886,6 +1095,14 @@ export default async function DeadlinesPage({
                             <p className="mt-2 text-sm text-slate-400">
                               {deadline.categoryLabel}
                             </p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.visibilityClassName}`}>
+                                {deadline.visibilityLabel}
+                              </span>
+                              <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.workflowClassName}`}>
+                                {deadline.workflowLabel}
+                              </span>
+                            </div>
                           </div>
 
                           <span
@@ -933,19 +1150,23 @@ export default async function DeadlinesPage({
                             Consulter
                           </Link>
 
-                          <Link
-                            href={`/deadlines/edit/${deadline.id}`}
-                            className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-                          >
-                            Modifier
-                          </Link>
+                          {deadline.workflowStatus !== "archived" && (deadline.visibility === "personal" || canManageTeam) ? (
+                            <>
+                              <Link
+                                href={`/deadlines/edit/${deadline.id}`}
+                                className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                              >
+                                Modifier
+                              </Link>
 
-                          <DeleteDeadlineButton
-                            id={deadline.id}
-                            title={deadline.title}
-                            category={deadline.category}
-                            documentFilePath={deadline.document?.file_path}
-                          />
+                              <DeleteDeadlineButton
+                                id={deadline.id}
+                                title={deadline.title}
+                                category={deadline.category}
+                                documentFilePath={deadline.document?.file_path}
+                              />
+                            </>
+                          ) : null}
                         </div>
                       </article>
                     ))}

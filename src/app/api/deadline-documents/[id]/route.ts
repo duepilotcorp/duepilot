@@ -56,7 +56,6 @@ export async function GET(
     .from("deadline_documents")
     .select("id, user_id, file_name, file_path, mime_type")
     .eq("id", documentId)
-    .eq("user_id", user.id)
     .maybeSingle();
 
   if (documentError) {

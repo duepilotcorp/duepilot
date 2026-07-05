@@ -238,8 +238,7 @@ export default function EditDeadlineForm({
         due_date: dueDate,
         notification_days: selectedNotificationDays,
       })
-      .eq("id", deadline.id)
-      .eq("user_id", user.id);
+      .eq("id", deadline.id);
 
     if (error) {
       console.error(error);

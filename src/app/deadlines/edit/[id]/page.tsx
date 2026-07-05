@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import EditDeadlineForm from "@/components/EditDeadlineForm";
+import { buildDeadlineAccessOrFilter, canEditDeadline, normalizeDeadlineVisibility } from "@/lib/deadline-access";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
+import { ensureUserOrganization } from "@/lib/organizations";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +23,9 @@ type Deadline = {
   notification_days: number[] | null;
   created_at: string;
   user_id: string | null;
+  organization_id: string | null;
+  visibility: string | null;
+  workflow_status: string | null;
 };
 
 function getSearchParam(
@@ -65,13 +70,23 @@ export default async function EditDeadlinePage({
     redirect("/login");
   }
 
+  const userOrganization = await ensureUserOrganization({
+    userId: user.id,
+    email: user.email,
+  });
+
   const { data: deadline, error } = await supabase
     .from("deadlines")
     .select(
-      "id, title, category, due_date, notification_days, created_at, user_id"
+      "id, title, category, due_date, notification_days, created_at, user_id, organization_id, visibility, workflow_status"
     )
     .eq("id", id)
-    .eq("user_id", user.id)
+    .or(
+      buildDeadlineAccessOrFilter({
+        userId: user.id,
+        organizationId: userOrganization?.organization.id,
+      })
+    )
     .maybeSingle();
 
   if (error) {
@@ -107,6 +122,19 @@ export default async function EditDeadlinePage({
   }
 
   const editableDeadline = deadline as Deadline;
+  const visibility = normalizeDeadlineVisibility(editableDeadline.visibility);
+  const canEditCurrentDeadline = canEditDeadline({
+    visibility,
+    ownerId: editableDeadline.user_id,
+    userId: user.id,
+    organizationRole: userOrganization?.membership.role,
+    workflowStatus: editableDeadline.workflow_status,
+  });
+
+  if (!canEditCurrentDeadline) {
+    redirect(`/deadlines/${editableDeadline.id}`);
+  }
+
   const deadlineDocument = await getDeadlineDocumentByDeadlineId({
     supabase,
     userId: user.id,

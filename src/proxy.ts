@@ -43,6 +43,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/deadlines") ||
     pathname.startsWith("/settings") ||
+    pathname.startsWith("/team/invitations") ||
     isAdminPage;
 
   if (!user && isProtectedPage) {

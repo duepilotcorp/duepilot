@@ -23,7 +23,6 @@ export async function getDeadlineDocumentsByDeadlineId({
   const { data, error } = await supabase
     .from("deadline_documents")
     .select(DOCUMENT_SELECT_FIELDS)
-    .eq("user_id", userId)
     .in("deadline_id", uniqueDeadlineIds);
 
   if (error) {
@@ -71,7 +70,6 @@ export async function getDeadlineDocumentById({
     .from("deadline_documents")
     .select(DOCUMENT_SELECT_FIELDS)
     .eq("id", documentId)
-    .eq("user_id", userId)
     .maybeSingle();
 
   if (error) {

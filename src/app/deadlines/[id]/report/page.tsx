@@ -2,9 +2,17 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import PrintReportButton from "@/components/PrintReportButton";
 import { getDeadlineActivityLogs } from "@/lib/activity-logs";
+import {
+  buildDeadlineAccessOrFilter,
+  DEADLINE_VISIBILITY_LABELS,
+  getDeadlineWorkflowLabel,
+  normalizeDeadlineVisibility,
+  normalizeDeadlineWorkflowStatus,
+} from "@/lib/deadline-access";
 import { formatFileSize } from "@/lib/deadline-documents";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
 import { getDeadlineRenewalHistory } from "@/lib/renewal-history";
+import { ensureUserOrganization } from "@/lib/organizations";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +31,9 @@ type Deadline = {
   notification_days: number[] | null;
   created_at: string;
   user_id: string | null;
+  organization_id: string | null;
+  visibility: string | null;
+  workflow_status: string | null;
 };
 
 type NotificationLog = {
@@ -124,6 +135,12 @@ function getActivityLabel(action: string) {
   if (action === "deadline.due_date_updated") return "Date modifiée";
   if (action === "deadline.reminders_updated") return "Rappels modifiés";
   if (action === "deadline.renewed") return "Échéance renouvelée";
+  if (action === "deadline.claimed") return "Échéance prise en charge";
+  if (action === "deadline.completed") return "Échéance faite, à valider";
+  if (action === "deadline.personal_completed") return "Échéance personnelle archivée";
+  if (action === "deadline.validated") return "Échéance validée";
+  if (action === "deadline.unclaimed") return "Prise en charge annulée";
+  if (action === "deadline.reopened") return "Échéance remise à traiter";
   if (action === "document.added") return "Document ajouté";
   if (action === "document.replaced") return "Document remplacé";
   if (action === "document.removed") return "Document supprimé";
@@ -151,11 +168,21 @@ export default async function DeadlineReportPage({
     redirect("/login");
   }
 
+  const userOrganization = await ensureUserOrganization({
+    userId: user.id,
+    email: user.email,
+  });
+
   const { data: deadline, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, notification_days, created_at, user_id")
+    .select("id, title, category, due_date, notification_days, created_at, user_id, organization_id, visibility, workflow_status")
     .eq("id", deadlineId)
-    .eq("user_id", user.id)
+    .or(
+      buildDeadlineAccessOrFilter({
+        userId: user.id,
+        organizationId: userOrganization?.organization.id,
+      })
+    )
     .maybeSingle()
     .returns<Deadline | null>();
 
@@ -169,6 +196,10 @@ export default async function DeadlineReportPage({
   }
 
   const typedDeadline = deadline as Deadline;
+  const visibility = normalizeDeadlineVisibility(typedDeadline.visibility);
+  const workflowStatus = normalizeDeadlineWorkflowStatus(typedDeadline.workflow_status);
+  const visibilityLabel = DEADLINE_VISIBILITY_LABELS[visibility];
+  const workflowLabel = getDeadlineWorkflowLabel({ status: workflowStatus, visibility });
   const document = await getDeadlineDocumentByDeadlineId({
     supabase,
     userId: user.id,
@@ -179,7 +210,6 @@ export default async function DeadlineReportPage({
     .from("notification_logs")
     .select("id, created_at, notification_day, due_date")
     .eq("deadline_id", typedDeadline.id)
-    .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(10)
     .returns<NotificationLog[]>();
@@ -267,7 +297,7 @@ export default async function DeadlineReportPage({
             </div>
           </section>
 
-          <section className="grid gap-4 border-b border-slate-200 px-7 py-6 sm:grid-cols-2 lg:grid-cols-4 print:px-0">
+          <section className="grid gap-4 border-b border-slate-200 px-7 py-6 sm:grid-cols-2 lg:grid-cols-6 print:px-0">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                 Catégorie
@@ -290,6 +320,20 @@ export default async function DeadlineReportPage({
                 {notificationDays.length > 0
                   ? notificationDays.map(formatReminder).join(" · ")
                   : "Aucun rappel"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Portée
+              </p>
+              <p className="mt-2 font-semibold text-slate-950">{visibilityLabel}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Suivi équipe
+              </p>
+              <p className="mt-2 font-semibold text-slate-950">
+                {visibility === "team" ? workflowLabel : "Non partagé"}
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

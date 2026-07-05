@@ -259,9 +259,15 @@ export default function RenewDeadlineForm({
 
     const { error: updateError } = await supabase
       .from("deadlines")
-      .update({ due_date: renewalDate })
-      .eq("id", deadline.id)
-      .eq("user_id", user.id);
+      .update({
+        due_date: renewalDate,
+        workflow_status: "open",
+        claimed_by: null,
+        claimed_at: null,
+        completed_by: null,
+        completed_at: null,
+      })
+      .eq("id", deadline.id);
 
     if (updateError) {
       console.error(updateError);

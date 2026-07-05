@@ -101,8 +101,7 @@ export async function deleteDeadlineDocument({
   const { error: deleteRowError } = await supabase
     .from("deadline_documents")
     .delete()
-    .eq("deadline_id", deadlineId)
-    .eq("user_id", userId);
+    .eq("deadline_id", deadlineId);
 
   if (deleteRowError) {
     console.error(deleteRowError);

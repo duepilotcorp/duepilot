@@ -45,11 +45,26 @@ export default function DeleteDeadlineButton({
       return;
     }
 
+    await createActivityLog({
+      supabase,
+      userId: user.id,
+      deadlineId: id,
+      action: "deadline.deleted",
+      title: "Échéance supprimée",
+      description: title
+        ? `${title} a été supprimée du suivi DuePilot.`
+        : "Une échéance a été supprimée du suivi DuePilot.",
+      metadata: {
+        title: title ?? null,
+        category: category ?? null,
+        had_document: Boolean(documentFilePath),
+      },
+    });
+
     const { error } = await supabase
       .from("deadlines")
       .delete()
-      .eq("id", id)
-      .eq("user_id", user.id);
+      .eq("id", id);
 
     if (error) {
       alert("Impossible de supprimer cette échéance pour le moment.");
@@ -66,22 +81,6 @@ export default function DeleteDeadlineButton({
         console.warn(storageError);
       }
     }
-
-    await createActivityLog({
-      supabase,
-      userId: user.id,
-      deadlineId: id,
-      action: "deadline.deleted",
-      title: "Échéance supprimée",
-      description: title
-        ? `${title} a été supprimée du suivi DuePilot.`
-        : "Une échéance a été supprimée du suivi DuePilot.",
-      metadata: {
-        title: title ?? null,
-        category: category ?? null,
-        had_document: Boolean(documentFilePath),
-      },
-    });
 
     if (redirectTo) {
       router.push(redirectTo);

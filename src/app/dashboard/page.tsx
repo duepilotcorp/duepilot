@@ -2,6 +2,15 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import DeadlineOnboardingEmptyState from "@/components/DeadlineOnboardingEmptyState";
 import LogoutButton from "@/components/LogoutButton";
+import {
+  buildDeadlineAccessOrFilter,
+  DEADLINE_VISIBILITY_LABELS,
+  getDeadlineWorkflowLabel,
+  getDeadlineVisibilityBadgeClassName,
+  getDeadlineWorkflowBadgeClassName,
+  normalizeDeadlineVisibility,
+  normalizeDeadlineWorkflowStatus,
+} from "@/lib/deadline-access";
 import { getDeadlineDocumentsByDeadlineId } from "@/lib/deadline-documents-server";
 import { ensureUserOrganization } from "@/lib/organizations";
 import { isUserAdmin } from "@/lib/user-roles";
@@ -16,6 +25,9 @@ type Deadline = {
   due_date: string;
   created_at: string;
   user_id: string | null;
+  organization_id: string | null;
+  visibility: string | null;
+  workflow_status: string | null;
 };
 
 type RiskSummary = {
@@ -182,8 +194,13 @@ export default async function DashboardPage() {
 
   const { data: deadlines, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, created_at, user_id")
-    .eq("user_id", user.id)
+    .select("id, title, category, due_date, created_at, user_id, organization_id, visibility, workflow_status")
+    .or(
+      buildDeadlineAccessOrFilter({
+        userId: user.id,
+        organizationId: userOrganization?.organization.id,
+      })
+    )
     .order("due_date", { ascending: true })
     .returns<Deadline[]>();
 
@@ -217,35 +234,49 @@ export default async function DashboardPage() {
       readableStatus: getReadableStatus(daysUntilDeadline),
       statusClassName: getStatusClassName(daysUntilDeadline),
       formattedDate: formatDeadlineDate(deadline.due_date),
+      visibility: normalizeDeadlineVisibility(deadline.visibility),
+      workflowStatus: normalizeDeadlineWorkflowStatus(deadline.workflow_status),
+      visibilityLabel: DEADLINE_VISIBILITY_LABELS[normalizeDeadlineVisibility(deadline.visibility)],
+      workflowLabel: getDeadlineWorkflowLabel({ status: normalizeDeadlineWorkflowStatus(deadline.workflow_status), visibility: normalizeDeadlineVisibility(deadline.visibility) }),
+      visibilityClassName: getDeadlineVisibilityBadgeClassName(normalizeDeadlineVisibility(deadline.visibility)),
+      workflowClassName: getDeadlineWorkflowBadgeClassName(normalizeDeadlineWorkflowStatus(deadline.workflow_status)),
       document: documentsByDeadlineId.get(deadline.id) ?? null,
     };
   });
 
-  const total = enrichedDeadlines.length;
-  const lateCount = enrichedDeadlines.filter(
+  const activeDeadlines = enrichedDeadlines.filter(
+    (deadline) => deadline.workflowStatus !== "archived"
+  );
+  const archivedCount = enrichedDeadlines.length - activeDeadlines.length;
+  const total = activeDeadlines.length;
+  const lateCount = activeDeadlines.filter(
     (deadline) => deadline.daysUntilDeadline < 0
   ).length;
-  const todayCount = enrichedDeadlines.filter(
+  const todayCount = activeDeadlines.filter(
     (deadline) => deadline.daysUntilDeadline === 0
   ).length;
-  const next7Count = enrichedDeadlines.filter(
+  const next7Count = activeDeadlines.filter(
     (deadline) =>
       deadline.daysUntilDeadline >= 0 && deadline.daysUntilDeadline <= 7
   ).length;
-  const next30Count = enrichedDeadlines.filter(
+  const next30Count = activeDeadlines.filter(
     (deadline) =>
       deadline.daysUntilDeadline >= 0 && deadline.daysUntilDeadline <= 30
   ).length;
-  const safeCount = enrichedDeadlines.filter(
+  const safeCount = activeDeadlines.filter(
     (deadline) => deadline.daysUntilDeadline > 30
   ).length;
-  const documentCount = enrichedDeadlines.filter((deadline) => deadline.document).length;
+  const documentCount = activeDeadlines.filter((deadline) => deadline.document).length;
+  const teamCount = activeDeadlines.filter((deadline) => deadline.visibility === "team").length;
+  const personalCount = activeDeadlines.filter((deadline) => deadline.visibility === "personal").length;
+  const inProgressCount = activeDeadlines.filter((deadline) => deadline.workflowStatus === "in_progress").length;
+  const pendingValidationCount = activeDeadlines.filter((deadline) => deadline.workflowStatus === "completed").length;
   const isAdminUser = await isUserAdmin(user.id);
 
-  const urgentDeadlines = enrichedDeadlines
+  const urgentDeadlines = activeDeadlines
     .filter((deadline) => deadline.daysUntilDeadline <= 30)
     .slice(0, 5);
-  const nextCriticalDeadline = enrichedDeadlines[0];
+  const nextCriticalDeadline = activeDeadlines[0];
   const riskSummary = getRiskSummary({
     total,
     lateCount,
@@ -286,14 +317,14 @@ export default async function DashboardPage() {
     {
       label: "Sous 30 jours",
       value: next30Count,
-      helper: "À anticiper maintenant",
+      helper: `${inProgressCount} en cours · ${pendingValidationCount} à valider`,
       className: "border-yellow-500/20 bg-yellow-500/10",
       valueClassName: "text-yellow-100",
     },
     {
       label: "Total suivies",
       value: total,
-      helper: `${documentCount} document${documentCount > 1 ? "s" : ""} associé${documentCount > 1 ? "s" : ""}`,
+      helper: `${teamCount} équipe · ${personalCount} perso · ${archivedCount} historiques`,
       className: "border-emerald-500/20 bg-emerald-500/10",
       valueClassName: "text-emerald-100",
     },
@@ -341,6 +372,12 @@ export default async function DashboardPage() {
             >
               Entreprise
             </Link>
+            <Link
+              href="/settings/team"
+              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+            >
+              Équipe
+            </Link>
             {isAdminUser ? (
               <Link
                 href="/admin/beta-requests"
@@ -349,6 +386,9 @@ export default async function DashboardPage() {
                 Admin beta
               </Link>
             ) : null}
+            <span className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-slate-300">
+              {user.email}
+            </span>
             <LogoutButton />
           </div>
         </header>
