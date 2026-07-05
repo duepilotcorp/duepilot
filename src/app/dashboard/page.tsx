@@ -17,6 +17,7 @@ import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import {
   getDeadlineImportanceBadgeClassName,
   getDeadlineImportanceLabel,
+  normalizeDeadlineImportance,
 } from "@/lib/deadline-importance";
 import { isUserAdmin } from "@/lib/user-roles";
 import { getUserDisplayName } from "@/lib/user-display";
@@ -105,6 +106,78 @@ function getStatusClassName(daysUntilDeadline: number) {
   return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200";
 }
 
+const DASHBOARD_MONTHS = [
+  "Jan.",
+  "Fév.",
+  "Mars",
+  "Avr.",
+  "Mai",
+  "Juin",
+  "Juil.",
+  "Août",
+  "Sept.",
+  "Oct.",
+  "Nov.",
+  "Déc.",
+] as const;
+
+function getMiniCalendarRisk({
+  total,
+  lateCount,
+  criticalCount,
+  next30Count,
+  pendingValidationCount,
+}: {
+  total: number;
+  lateCount: number;
+  criticalCount: number;
+  next30Count: number;
+  pendingValidationCount: number;
+}) {
+  if (total === 0) {
+    return {
+      riskLabel: "Libre",
+      cardClassName: "border-white/10 bg-white/[0.025] hover:border-white/20",
+      dotClassName: "bg-slate-500/50",
+      textClassName: "text-slate-500",
+    };
+  }
+
+  if (lateCount > 0 || criticalCount > 0) {
+    return {
+      riskLabel: "Critique",
+      cardClassName: "border-red-400/25 bg-red-400/10 hover:border-red-300/45",
+      dotClassName: "bg-red-400 shadow-[0_0_20px_rgba(248,113,113,0.45)]",
+      textClassName: "text-red-100",
+    };
+  }
+
+  if (pendingValidationCount > 0 || next30Count > 0) {
+    return {
+      riskLabel: "À surveiller",
+      cardClassName: "border-orange-400/25 bg-orange-400/10 hover:border-orange-300/45",
+      dotClassName: "bg-orange-300 shadow-[0_0_20px_rgba(253,186,116,0.4)]",
+      textClassName: "text-orange-100",
+    };
+  }
+
+  if (total >= 3) {
+    return {
+      riskLabel: "Chargé",
+      cardClassName: "border-yellow-400/25 bg-yellow-400/10 hover:border-yellow-300/45",
+      dotClassName: "bg-yellow-300 shadow-[0_0_20px_rgba(253,224,71,0.35)]",
+      textClassName: "text-yellow-100",
+    };
+  }
+
+  return {
+    riskLabel: "Calme",
+    cardClassName: "border-emerald-400/25 bg-emerald-400/10 hover:border-emerald-300/45",
+    dotClassName: "bg-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.35)]",
+    textClassName: "text-emerald-100",
+  };
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient();
 
@@ -171,6 +244,7 @@ export default async function DashboardPage() {
       visibilityClassName: getDeadlineVisibilityBadgeClassName(normalizeDeadlineVisibility(deadline.visibility)),
       workflowClassName: getDeadlineWorkflowBadgeClassName(normalizeDeadlineWorkflowStatus(deadline.workflow_status)),
       recurrenceLabel: getRecurrenceShortLabel(deadline.recurrence_rule),
+      importanceLevel: normalizeDeadlineImportance(deadline.importance_level),
       importanceLabel: getDeadlineImportanceLabel(deadline.importance_level),
       importanceClassName: getDeadlineImportanceBadgeClassName(deadline.importance_level),
       document: documentsByDeadlineId.get(deadline.id) ?? null,
@@ -235,6 +309,50 @@ export default async function DashboardPage() {
     }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
+
+  const dashboardCalendarYear = today.getFullYear();
+  const dashboardCalendarMonths = DASHBOARD_MONTHS.map((monthLabel, monthIndex) => {
+    const monthDeadlines = activeDeadlines.filter((deadline) => {
+      const deadlineDate = parseLocalDate(deadline.due_date);
+      return deadlineDate.getFullYear() === dashboardCalendarYear && deadlineDate.getMonth() === monthIndex;
+    });
+    const lateInMonthCount = monthDeadlines.filter((deadline) => deadline.daysUntilDeadline < 0).length;
+    const criticalInMonthCount = monthDeadlines.filter(
+      (deadline) => deadline.importanceLevel === "critical"
+    ).length;
+    const next30InMonthCount = monthDeadlines.filter(
+      (deadline) => deadline.daysUntilDeadline >= 0 && deadline.daysUntilDeadline <= 30
+    ).length;
+    const pendingValidationInMonthCount = monthDeadlines.filter(
+      (deadline) => deadline.workflowStatus === "completed"
+    ).length;
+    const risk = getMiniCalendarRisk({
+      total: monthDeadlines.length,
+      lateCount: lateInMonthCount,
+      criticalCount: criticalInMonthCount,
+      next30Count: next30InMonthCount,
+      pendingValidationCount: pendingValidationInMonthCount,
+    });
+
+    return {
+      value: String(monthIndex + 1).padStart(2, "0"),
+      monthLabel,
+      total: monthDeadlines.length,
+      lateCount: lateInMonthCount,
+      criticalCount: criticalInMonthCount,
+      next30Count: next30InMonthCount,
+      pendingValidationCount: pendingValidationInMonthCount,
+      ...risk,
+    };
+  });
+  const dashboardCalendarTotal = dashboardCalendarMonths.reduce(
+    (sum, month) => sum + month.total,
+    0
+  );
+  const dashboardCalendarRiskCount = dashboardCalendarMonths.filter(
+    (month) => month.lateCount > 0 || month.criticalCount > 0
+  ).length;
+  const dashboardBusiestMonth = [...dashboardCalendarMonths].sort((a, b) => b.total - a.total)[0];
 
   const statCards = [
     {
@@ -311,12 +429,18 @@ Vue d’ensemble
                       : "Aucune urgence immédiate détectée."}
                 </p>
 
-                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                   <Link
                     href="/deadlines"
                     className="inline-flex justify-center rounded-2xl bg-blue-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/30 transition hover:-translate-y-0.5 hover:bg-blue-400"
                   >
                     Accéder aux échéances
+                  </Link>
+                  <Link
+                    href="/deadlines/calendar"
+                    className="inline-flex justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-300/40 hover:bg-cyan-400/15 hover:text-white"
+                  >
+                    Calendrier conformité
                   </Link>
                   <Link
                     href="/deadlines/new"
@@ -394,6 +518,65 @@ Vue d’ensemble
               <p className="mt-3 text-sm text-slate-400">{card.helper}</p>
             </div>
           ))}
+        </section>
+
+        <section className="mt-6 rounded-[2rem] border border-white/10 bg-slate-900/80 p-5 shadow-2xl shadow-slate-950/20 animate-rise-in-delay-1 sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                Calendrier conformité
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-white">
+                Vue rapide {dashboardCalendarYear}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                Repérez en un coup d’œil les mois chargés, critiques ou calmes sans quitter le dashboard.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+              <span className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100">
+                {dashboardCalendarTotal} échéance{dashboardCalendarTotal > 1 ? "s" : ""} cette année
+              </span>
+              <span className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-2 text-sm font-semibold text-red-100">
+                {dashboardCalendarRiskCount} mois à risque
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-12">
+            {dashboardCalendarMonths.map((month) => (
+              <Link
+                key={month.value}
+                href={`/deadlines/calendar?year=${dashboardCalendarYear}&month=${month.value}`}
+                className={`group rounded-2xl border p-3 transition hover:-translate-y-0.5 ${month.cardClassName}`}
+                title={`${month.monthLabel} ${dashboardCalendarYear} · ${month.total} échéance${month.total > 1 ? "s" : ""} · ${month.riskLabel}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-xs font-bold text-white">{month.monthLabel}</span>
+                  <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${month.dotClassName}`} />
+                </div>
+                <p className="mt-3 text-3xl font-bold text-white">{month.total}</p>
+                <p className={`mt-1 truncate text-[11px] font-semibold ${month.textClassName}`}>
+                  {month.riskLabel}
+                </p>
+              </Link>
+            ))}
+          </div>
+
+          <div className="mt-5 flex flex-col gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm leading-6 text-slate-400">
+              {dashboardBusiestMonth && dashboardBusiestMonth.total > 0
+                ? `${dashboardBusiestMonth.monthLabel} est le mois le plus chargé avec ${dashboardBusiestMonth.total} échéance${dashboardBusiestMonth.total > 1 ? "s" : ""}.`
+                : "Aucune échéance active planifiée sur l’année en cours."}
+            </p>
+            <Link
+              href={`/deadlines/calendar?year=${dashboardCalendarYear}`}
+              className="inline-flex justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-300/40 hover:bg-cyan-400/15 hover:text-white"
+            >
+              Ouvrir le calendrier complet
+            </Link>
+          </div>
         </section>
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[0.95fr_1.05fr] animate-rise-in-delay-1">

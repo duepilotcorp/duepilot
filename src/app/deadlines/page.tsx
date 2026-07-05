@@ -712,6 +712,12 @@ export default async function DeadlinesPage({
                     {documentCount} document{documentCount > 1 ? "s" : ""}
                   </span>
                   <Link
+                    href="/deadlines/calendar"
+                    className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 font-semibold text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-400/15 hover:text-white"
+                  >
+                    Calendrier conformité
+                  </Link>
+                  <Link
                     href="/deadlines/history"
                     className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
                   >
