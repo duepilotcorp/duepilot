@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import AppHeader from "@/components/AppHeader";
 import DeadlineOnboardingEmptyState from "@/components/DeadlineOnboardingEmptyState";
-import LogoutButton from "@/components/LogoutButton";
 import {
   buildDeadlineAccessOrFilter,
   DEADLINE_VISIBILITY_LABELS,
@@ -15,6 +15,7 @@ import { getDeadlineDocumentsByDeadlineId } from "@/lib/deadline-documents-serve
 import { ensureUserOrganization } from "@/lib/organizations";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import { isUserAdmin } from "@/lib/user-roles";
+import { getUserDisplayName } from "@/lib/user-display";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -276,6 +277,7 @@ export default async function DashboardPage() {
   const pendingValidationCount = activeDeadlines.filter((deadline) => deadline.workflowStatus === "completed").length;
   const recurringCount = activeDeadlines.filter((deadline) => deadline.recurrence_rule && deadline.recurrence_rule !== "none").length;
   const isAdminUser = await isUserAdmin(user.id);
+  const displayName = getUserDisplayName(user);
 
   const urgentDeadlines = activeDeadlines
     .filter((deadline) => deadline.daysUntilDeadline <= 30)
@@ -342,69 +344,15 @@ export default async function DashboardPage() {
       </div>
 
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-10">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/dashboard" className="group flex w-fit items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-300/25 bg-blue-400/10 shadow-[0_0_40px_rgba(59,130,246,0.18)] transition group-hover:border-blue-200/40 group-hover:bg-blue-400/15">
-              <span className="h-4 w-4 rounded-full bg-blue-300 shadow-[0_0_24px_rgba(147,197,253,0.85)]" />
-            </span>
-            <span>
-              <span className="block text-sm font-semibold tracking-[0.28em] text-blue-100">
-                DUEPILOT
-              </span>
-              <span className="hidden text-xs text-slate-500 sm:block">
-                Espace de suivi
-              </span>
-            </span>
-          </Link>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Link
-              href="/deadlines"
-              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-            >
-              Voir les échéances
-            </Link>
-            <Link
-              href="/deadlines/new"
-              className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-950/30 transition hover:-translate-y-0.5 hover:bg-blue-400"
-            >
-              Nouvelle échéance
-            </Link>
-            <Link
-              href="/settings/company"
-              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-            >
-              Entreprise
-            </Link>
-            <Link
-              href="/settings/team"
-              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-            >
-              Équipe
-            </Link>
-            {isAdminUser ? (
-              <Link
-                href="/admin/beta-requests"
-                className="inline-flex justify-center rounded-xl border border-purple-300/20 bg-purple-400/10 px-4 py-2 text-sm font-semibold text-purple-100 transition hover:-translate-y-0.5 hover:border-purple-300/40 hover:bg-purple-400/15 hover:text-white"
-              >
-                Admin beta
-              </Link>
-            ) : null}
-            <Link
-              href="/settings/account"
-              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-            >
-              Compte
-            </Link>
-            <Link
-              href="/settings/account"
-              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-            >
-              {user.email}
-            </Link>
-            <LogoutButton />
-          </div>
-        </header>
+        <AppHeader
+          subtitle="Espace de suivi"
+          userName={displayName}
+          userEmail={user.email}
+          organizationName={userOrganization?.organization.name}
+          organizationRole={userOrganization?.membership.role}
+          isAdminUser={isAdminUser}
+          active="dashboard"
+        />
 
         <section className="premium-sheen mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-blue-950/20 backdrop-blur animate-rise-in">
           <div className="relative p-6 sm:p-8 lg:p-10">

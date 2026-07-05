@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import LogoutButton from "@/components/LogoutButton";
 import { createClient } from "@/lib/supabase/server";
 
@@ -99,7 +100,24 @@ const trustItems = [
   },
 ];
 
-export default async function Home() {
+type HomeSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function getSearchParamValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams?: HomeSearchParams;
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const recoveryCode = getSearchParamValue(resolvedSearchParams.code);
+
+  if (recoveryCode) {
+    redirect(`/reset-password?code=${encodeURIComponent(recoveryCode)}`);
+  }
+
   const supabase = await createClient();
   const {
     data: { user },

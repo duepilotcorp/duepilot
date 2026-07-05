@@ -24,7 +24,7 @@ import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server
 import { getDeadlineRenewalHistory } from "@/lib/renewal-history";
 import { getNextRecurringDate, getRecurrenceShortLabel, normalizeRecurrenceRule } from "@/lib/recurrence";
 import { ensureUserOrganization } from "@/lib/organizations";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getAuthUserDisplayName } from "@/lib/user-display";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -209,19 +209,6 @@ function normalizeNotificationDays(days: number[] | null) {
   ).sort((firstDay, secondDay) => secondDay - firstDay);
 }
 
-async function getUserEmail(userId: string | null) {
-  if (!userId) return null;
-
-  const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
-
-  if (error) {
-    console.warn(error);
-    return null;
-  }
-
-  return data.user?.email ?? null;
-}
-
 function formatReminder(day: number) {
   if (day === 0) return "Jour J";
   return `J-${day}`;
@@ -328,8 +315,8 @@ export default async function DeadlineDetailPage({
   const isOwner = typedDeadline.user_id === user.id;
   const claimedByCurrentUser = typedDeadline.claimed_by === user.id;
   const completedByCurrentUser = typedDeadline.completed_by === user.id;
-  const claimedByEmail = await getUserEmail(typedDeadline.claimed_by);
-  const completedByEmail = await getUserEmail(typedDeadline.completed_by);
+  const claimedByDisplayName = await getAuthUserDisplayName(typedDeadline.claimed_by);
+  const completedByDisplayName = await getAuthUserDisplayName(typedDeadline.completed_by);
 
   const document = await getDeadlineDocumentByDeadlineId({
     supabase,
@@ -788,7 +775,7 @@ Fiche échéance
             <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">En cours par</p>
               <p className="mt-2 font-semibold text-white">
-                {claimedByEmail ?? "Personne pour le moment"}
+                {claimedByDisplayName ?? "Personne pour le moment"}
               </p>
               {typedDeadline.claimed_at ? (
                 <p className="mt-1 text-xs text-slate-300/70">{formatDateTime(typedDeadline.claimed_at)}</p>
@@ -798,7 +785,7 @@ Fiche échéance
             <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Faite par</p>
               <p className="mt-2 font-semibold text-white">
-                {completedByEmail ?? "Pas encore indiquée comme faite"}
+                {completedByDisplayName ?? "Pas encore indiquée comme faite"}
               </p>
               {typedDeadline.completed_at ? (
                 <p className="mt-1 text-xs text-slate-300/70">{formatDateTime(typedDeadline.completed_at)}</p>

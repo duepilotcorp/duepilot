@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import PasswordField from "@/components/PasswordField";
 import { getSafeRedirectPath } from "@/lib/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -153,23 +154,25 @@ export default function LoginPage() {
 
                 <div>
                   <div className="mb-2 flex items-center justify-between gap-4">
-                    <label
-                      htmlFor="password"
-                      className="block text-sm font-medium text-slate-200"
-                    >
+                    <span className="block text-sm font-medium text-slate-200">
                       Mot de passe
-                    </label>
-                    <span className="text-xs text-slate-500">Accès sécurisé</span>
+                    </span>
+                    <Link
+                      href="/forgot-password"
+                      className="text-xs font-semibold text-blue-200 transition hover:text-blue-100"
+                    >
+                      Mot de passe oublié ?
+                    </Link>
                   </div>
-                  <input
+                  <PasswordField
                     id="password"
-                    type="password"
-                    placeholder="Votre mot de passe"
+                    label=""
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={setPassword}
                     autoComplete="current-password"
+                    placeholder="Votre mot de passe"
                     disabled={isLoading}
-                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/70 focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+                    minLength={1}
                   />
                 </div>
 

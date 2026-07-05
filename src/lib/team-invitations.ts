@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getUserDisplayName } from "@/lib/user-display";
 import {
   ORGANIZATION_MEMBER_ROLES,
   ORGANIZATION_ROLE_LABELS,
@@ -14,6 +15,7 @@ export type InvitableOrganizationRole = (typeof INVITABLE_ROLES)[number];
 export type TeamMember = {
   userId: string;
   email: string;
+  displayName: string;
   role: OrganizationMemberRole;
   roleLabel: string;
   status: string;
@@ -119,6 +121,7 @@ export async function getOrganizationMembers(organizationId: string) {
       return {
         userId: membership.user_id,
         email: userData.user?.email ?? "Email indisponible",
+        displayName: getUserDisplayName(userData.user),
         role,
         roleLabel: ORGANIZATION_ROLE_LABELS[role],
         status: membership.status ?? "active",

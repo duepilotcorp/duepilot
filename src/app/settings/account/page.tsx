@@ -2,11 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AccountPasswordForm from "@/components/AccountPasswordForm";
 import AccountProfileForm from "@/components/AccountProfileForm";
+import AppHeader from "@/components/AppHeader";
 import LogoutButton from "@/components/LogoutButton";
 import {
   ensureUserOrganization,
   ORGANIZATION_ROLE_LABELS,
 } from "@/lib/organizations";
+import { getUserDisplayName } from "@/lib/user-display";
+import { isUserAdmin } from "@/lib/user-roles";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -24,14 +27,6 @@ function getMetadataString(
   }
 
   return "";
-}
-
-function getFallbackName(email: string | null | undefined) {
-  const localPart = email?.split("@")[0]?.trim();
-
-  if (!localPart) return "Compte DuePilot";
-
-  return localPart;
 }
 
 function formatDateTime(date: string | null | undefined) {
@@ -59,7 +54,7 @@ export default async function AccountSettingsPage() {
 
   const metadata = user.user_metadata as Record<string, unknown> | null;
   const storedFullName = getMetadataString(metadata, ["full_name", "name"]);
-  const displayName = storedFullName || getFallbackName(user.email);
+  const displayName = getUserDisplayName(user);
   const email = user.email ?? "Email indisponible";
   const emailConfirmed = Boolean(user.email_confirmed_at);
 
@@ -72,6 +67,10 @@ export default async function AccountSettingsPage() {
   const roleLabel = userOrganization
     ? ORGANIZATION_ROLE_LABELS[userOrganization.membership.role]
     : "Non défini";
+  const canManageOrganization =
+    userOrganization?.membership.role === "owner" ||
+    userOrganization?.membership.role === "admin";
+  const isAdminUser = await isUserAdmin(user.id);
 
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 text-white">
@@ -81,49 +80,15 @@ export default async function AccountSettingsPage() {
       </div>
 
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5 py-6 sm:px-8 lg:px-10">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/dashboard" className="group flex w-fit items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-300/25 bg-blue-400/10 shadow-[0_0_40px_rgba(59,130,246,0.18)] transition group-hover:border-blue-200/40 group-hover:bg-blue-400/15">
-              <span className="h-4 w-4 rounded-full bg-blue-300 shadow-[0_0_24px_rgba(147,197,253,0.85)]" />
-            </span>
-            <span>
-              <span className="block text-sm font-semibold tracking-[0.28em] text-blue-100">
-                DUEPILOT
-              </span>
-              <span className="hidden text-xs text-slate-500 sm:block">
-                Compte et sécurité
-              </span>
-            </span>
-          </Link>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Link
-              href="/dashboard"
-              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/deadlines"
-              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-            >
-              Échéances
-            </Link>
-            <Link
-              href="/settings/company"
-              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-            >
-              Entreprise
-            </Link>
-            <Link
-              href="/settings/team"
-              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-            >
-              Équipe
-            </Link>
-            <LogoutButton />
-          </div>
-        </header>
+        <AppHeader
+          subtitle="Compte et sécurité"
+          userName={displayName}
+          userEmail={user.email}
+          organizationName={organizationName}
+          organizationRole={userOrganization?.membership.role}
+          isAdminUser={isAdminUser}
+          active="account"
+        />
 
         <section className="premium-sheen mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-blue-950/20 backdrop-blur animate-rise-in sm:p-8 lg:p-10">
           <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
@@ -211,20 +176,20 @@ export default async function AccountSettingsPage() {
                 <p className="mt-2 text-lg font-bold text-white">{organizationName}</p>
                 <p className="mt-1 text-sm text-blue-100/80">Rôle : {roleLabel}</p>
               </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                <Link
-                  href="/settings/company"
-                  className="inline-flex justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-blue-50 transition hover:border-blue-200/30 hover:bg-blue-400/15"
-                >
-                  Paramètres entreprise
-                </Link>
-                <Link
-                  href="/settings/team"
-                  className="inline-flex justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-blue-50 transition hover:border-blue-200/30 hover:bg-blue-400/15"
-                >
-                  Paramètres équipe
-                </Link>
-              </div>
+              {canManageOrganization ? (
+                <div className="mt-5">
+                  <Link
+                    href="/settings/organization"
+                    className="inline-flex w-full justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-blue-50 transition hover:border-blue-200/30 hover:bg-blue-400/15"
+                  >
+                    Gérer l’organisation
+                  </Link>
+                </div>
+              ) : (
+                <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/35 p-4 text-sm leading-6 text-blue-100/80">
+                  Votre rôle vous donne accès à la composition de l’équipe, sans modifier les paramètres de l’entreprise.
+                </div>
+              )}
             </div>
 
             <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">

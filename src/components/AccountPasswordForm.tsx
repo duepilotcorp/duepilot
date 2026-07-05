@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import PasswordField from "@/components/PasswordField";
 import { createClient } from "@/lib/supabase/client";
 
 export default function AccountPasswordForm() {
@@ -76,35 +77,26 @@ export default function AccountPasswordForm() {
       ) : null}
 
       <div className="mt-6 space-y-5">
-        <label className="block">
-          <span className="mb-2 block text-sm font-semibold text-slate-100">
-            Nouveau mot de passe
-          </span>
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            minLength={8}
-            autoComplete="new-password"
-            placeholder="Minimum 8 caractères"
-            className="w-full rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950 focus:ring-4 focus:ring-blue-500/10"
-          />
-        </label>
+        <PasswordField
+          id="newPassword"
+          label="Nouveau mot de passe"
+          value={password}
+          onChange={setPassword}
+          autoComplete="new-password"
+          placeholder="Minimum 8 caractères"
+          disabled={isLoading}
+          showStrength
+        />
 
-        <label className="block">
-          <span className="mb-2 block text-sm font-semibold text-slate-100">
-            Confirmer le mot de passe
-          </span>
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={(event) => setConfirmPassword(event.target.value)}
-            minLength={8}
-            autoComplete="new-password"
-            placeholder="Répétez le même mot de passe"
-            className="w-full rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950 focus:ring-4 focus:ring-blue-500/10"
-          />
-        </label>
+        <PasswordField
+          id="confirmPassword"
+          label="Confirmer le mot de passe"
+          value={confirmPassword}
+          onChange={setConfirmPassword}
+          autoComplete="new-password"
+          placeholder="Répétez le même mot de passe"
+          disabled={isLoading}
+        />
       </div>
 
       <div className="mt-6 flex justify-end">

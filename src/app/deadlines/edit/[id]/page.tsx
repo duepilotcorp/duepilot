@@ -195,7 +195,7 @@ export default async function EditDeadlinePage({
                     : "Rappels par défaut"}
                 </p>
                 <p>Récurrence : {getRecurrenceShortLabel(editableDeadline.recurrence_rule)}</p>
-                <p>
+                <p className="break-all leading-6">
                   {deadlineDocument
                     ? `Document : ${deadlineDocument.file_name}`
                     : "Aucun document attaché"}

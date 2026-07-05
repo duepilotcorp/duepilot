@@ -101,29 +101,36 @@ export default function DateField({
         ) : null}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-        <input
-          ref={inputRef}
-          id={id}
-          type="date"
-          value={value}
-          min={min}
-          onChange={(event) => onChange(event.target.value)}
-          disabled={disabled}
-          required={required}
-          className={`w-full rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-white outline-none transition ${classes.focus} focus:bg-slate-950 focus:ring-4 disabled:cursor-not-allowed disabled:opacity-60`}
-        />
-        <button
-          type="button"
-          onClick={openCalendar}
-          disabled={disabled}
-          className={`inline-flex justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-100 transition disabled:cursor-not-allowed disabled:opacity-60 ${classes.button}`}
-        >
-          Ouvrir le calendrier
-        </button>
+      <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-2 shadow-inner shadow-black/20 transition focus-within:border-blue-400/40 focus-within:bg-slate-950/70 focus-within:ring-4 focus-within:ring-blue-500/10">
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg text-blue-100/80">
+              📅
+            </span>
+            <input
+              ref={inputRef}
+              id={id}
+              type="date"
+              value={value}
+              min={min}
+              onChange={(event) => onChange(event.target.value)}
+              disabled={disabled}
+              required={required}
+              className={`w-full rounded-2xl border border-white/10 bg-white/[0.035] py-4 pl-12 pr-4 text-white [color-scheme:dark] outline-none transition ${classes.focus} focus:bg-white/[0.06] focus:ring-4 disabled:cursor-not-allowed disabled:opacity-60`}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={openCalendar}
+            disabled={disabled}
+            className={`inline-flex justify-center rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-slate-100 transition disabled:cursor-not-allowed disabled:opacity-60 ${classes.button}`}
+          >
+            Choisir une date
+          </button>
+        </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.025] p-2">
         {quickActions.map((action) => (
           <button
             key={`${action.label}-${action.months}`}

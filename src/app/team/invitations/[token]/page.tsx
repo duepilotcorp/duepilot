@@ -36,14 +36,14 @@ async function acceptInvitationAction(formData: FormData) {
     userEmail: user.email,
   });
 
-  revalidatePath("/settings/team");
+  revalidatePath("/settings/organization");
   revalidatePath("/dashboard");
 
   if (!result.success) {
     redirect(`/team/invitations/${token}?error=${encodeURIComponent(result.message)}`);
   }
 
-  redirect("/settings/team?accepted=1");
+  redirect("/settings/organization?accepted=1");
 }
 
 export default async function TeamInvitationPage({ params }: InvitationPageProps) {
