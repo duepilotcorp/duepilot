@@ -13,6 +13,7 @@ import { formatFileSize } from "@/lib/deadline-documents";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
 import { getDeadlineRenewalHistory } from "@/lib/renewal-history";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
+import { getDeadlineImportanceLabel } from "@/lib/deadline-importance";
 import { ensureUserOrganization } from "@/lib/organizations";
 import { createClient } from "@/lib/supabase/server";
 
@@ -31,6 +32,7 @@ type Deadline = {
   due_date: string;
   notification_days: number[] | null;
   recurrence_rule: string | null;
+  importance_level: string | null;
   created_at: string;
   user_id: string | null;
   organization_id: string | null;
@@ -178,7 +180,7 @@ export default async function DeadlineReportPage({
 
   const { data: deadline, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, notification_days, recurrence_rule, created_at, user_id, organization_id, visibility, workflow_status")
+    .select("id, title, category, due_date, notification_days, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
     .eq("id", deadlineId)
     .or(
       buildDeadlineAccessOrFilter({
@@ -247,6 +249,7 @@ export default async function DeadlineReportPage({
   }).format(new Date());
   const categoryLabel = typedDeadline.category?.trim() || "Sans catégorie";
   const recurrenceLabel = getRecurrenceShortLabel(typedDeadline.recurrence_rule);
+  const importanceLabel = getDeadlineImportanceLabel(typedDeadline.importance_level);
   const logs = notificationLogsError ? [] : notificationLogs ?? [];
 
   return (
@@ -346,6 +349,14 @@ export default async function DeadlineReportPage({
               </p>
               <p className="mt-2 font-semibold text-slate-950">
                 {recurrenceLabel}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Importance
+              </p>
+              <p className="mt-2 font-semibold text-slate-950">
+                {importanceLabel}
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

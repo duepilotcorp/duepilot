@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import LogoutButton from "@/components/LogoutButton";
+import AppHeader from "@/components/AppHeader";
 import {
   BETA_ACCESS_STATUS_LABELS,
   BETA_ACCESS_STATUSES,
@@ -11,6 +11,8 @@ import {
 import { isUserAdmin } from "@/lib/user-roles";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { ensureUserOrganization } from "@/lib/organizations";
+import { getUserDisplayName } from "@/lib/user-display";
 
 export const dynamic = "force-dynamic";
 
@@ -123,6 +125,12 @@ export default async function BetaRequestsAdminPage() {
     redirect("/dashboard");
   }
 
+  const userOrganization = await ensureUserOrganization({
+    userId: user.id,
+    email: user.email,
+  });
+  const displayName = getUserDisplayName(user);
+
   const { data, error } = await supabaseAdmin
     .from("beta_access_requests")
     .select(
@@ -157,37 +165,15 @@ export default async function BetaRequestsAdminPage() {
       </div>
 
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-10">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/dashboard" className="group flex w-fit items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-300/25 bg-blue-400/10 shadow-[0_0_40px_rgba(59,130,246,0.18)] transition group-hover:border-blue-200/40 group-hover:bg-blue-400/15">
-              <span className="h-4 w-4 rounded-full bg-blue-300 shadow-[0_0_24px_rgba(147,197,253,0.85)]" />
-            </span>
-            <span>
-              <span className="block text-sm font-semibold tracking-[0.28em] text-blue-100">
-                DUEPILOT
-              </span>
-              <span className="hidden text-xs text-slate-500 sm:block">
-                Administration beta
-              </span>
-            </span>
-          </Link>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Link
-              href="/dashboard"
-              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/deadlines"
-              className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-            >
-              Échéances
-            </Link>
-            <LogoutButton />
-          </div>
-        </header>
+        <AppHeader
+          subtitle="Administration beta"
+          userName={displayName}
+          userEmail={user.email}
+          organizationName={userOrganization?.organization.name}
+          organizationRole={userOrganization?.membership.role}
+          isAdminUser
+          active="admin"
+        />
 
         <section className="premium-sheen mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-blue-950/20 backdrop-blur animate-rise-in">
           <div className="relative p-6 sm:p-8 lg:p-10">

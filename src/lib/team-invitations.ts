@@ -538,3 +538,204 @@ export async function acceptOrganizationInvitation({
     organizationId: invitation.organizationId,
   };
 }
+
+export async function updateOrganizationMemberRole({
+  organizationId,
+  actingUserId,
+  actingUserRole,
+  targetUserId,
+  newRole,
+}: {
+  organizationId: string;
+  actingUserId: string;
+  actingUserRole: OrganizationMemberRole;
+  targetUserId: string;
+  newRole: string;
+}) {
+  if (!canManageOrganizationTeam(actingUserRole)) {
+    return {
+      success: false,
+      message: "Vous n’avez pas les droits nécessaires pour modifier les rôles.",
+    };
+  }
+
+  if (actingUserId === targetUserId) {
+    return {
+      success: false,
+      message: "Vous ne pouvez pas modifier votre propre rôle.",
+    };
+  }
+
+  if (!isInvitableRole(newRole)) {
+    return {
+      success: false,
+      message: "Le rôle sélectionné n’est pas valide.",
+    };
+  }
+
+  const { data: targetMembership, error: targetError } = await supabaseAdmin
+    .from("organization_members")
+    .select("role, status")
+    .eq("organization_id", organizationId)
+    .eq("user_id", targetUserId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (targetError) {
+    console.error(targetError);
+    return {
+      success: false,
+      message: "Impossible de vérifier ce membre pour le moment.",
+    };
+  }
+
+  if (!targetMembership) {
+    return {
+      success: false,
+      message: "Ce membre actif est introuvable.",
+    };
+  }
+
+  if (targetMembership.role === "owner") {
+    return {
+      success: false,
+      message: "Le propriétaire de l’organisation ne peut pas être modifié.",
+    };
+  }
+
+  if (actingUserRole !== "owner" && targetMembership.role === "admin") {
+    return {
+      success: false,
+      message: "Seul le propriétaire peut modifier un administrateur.",
+    };
+  }
+
+  const { error } = await supabaseAdmin
+    .from("organization_members")
+    .update({
+      role: newRole,
+    })
+    .eq("organization_id", organizationId)
+    .eq("user_id", targetUserId)
+    .eq("status", "active");
+
+  if (error) {
+    console.error(error);
+    return {
+      success: false,
+      message: "Impossible de modifier ce rôle pour le moment.",
+    };
+  }
+
+  return {
+    success: true,
+    message: "Rôle mis à jour.",
+  };
+}
+
+export async function disableOrganizationMember({
+  organizationId,
+  actingUserId,
+  actingUserRole,
+  targetUserId,
+}: {
+  organizationId: string;
+  actingUserId: string;
+  actingUserRole: OrganizationMemberRole;
+  targetUserId: string;
+}) {
+  if (!canManageOrganizationTeam(actingUserRole)) {
+    return {
+      success: false,
+      message: "Vous n’avez pas les droits nécessaires pour supprimer un membre.",
+    };
+  }
+
+  if (actingUserId === targetUserId) {
+    return {
+      success: false,
+      message: "Vous ne pouvez pas supprimer votre propre accès.",
+    };
+  }
+
+  const { data: targetMembership, error: targetError } = await supabaseAdmin
+    .from("organization_members")
+    .select("role, status")
+    .eq("organization_id", organizationId)
+    .eq("user_id", targetUserId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (targetError) {
+    console.error(targetError);
+    return {
+      success: false,
+      message: "Impossible de vérifier ce membre pour le moment.",
+    };
+  }
+
+  if (!targetMembership) {
+    return {
+      success: false,
+      message: "Ce membre actif est introuvable.",
+    };
+  }
+
+  if (targetMembership.role === "owner") {
+    return {
+      success: false,
+      message: "Le propriétaire de l’organisation ne peut pas être supprimé.",
+    };
+  }
+
+  if (actingUserRole !== "owner" && targetMembership.role === "admin") {
+    return {
+      success: false,
+      message: "Seul le propriétaire peut supprimer un administrateur.",
+    };
+  }
+
+  const { count: activeManagersCount, error: managersError } = await supabaseAdmin
+    .from("organization_members")
+    .select("user_id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .eq("status", "active")
+    .in("role", ["owner", "admin"]);
+
+  if (managersError) {
+    console.error(managersError);
+    return {
+      success: false,
+      message: "Impossible de vérifier les administrateurs restants.",
+    };
+  }
+
+  if ((activeManagersCount ?? 0) <= 1 && targetMembership.role === "admin") {
+    return {
+      success: false,
+      message: "Impossible de retirer le dernier administrateur actif.",
+    };
+  }
+
+  const { error } = await supabaseAdmin
+    .from("organization_members")
+    .update({
+      status: "disabled",
+    })
+    .eq("organization_id", organizationId)
+    .eq("user_id", targetUserId)
+    .eq("status", "active");
+
+  if (error) {
+    console.error(error);
+    return {
+      success: false,
+      message: "Impossible de supprimer ce membre pour le moment.",
+    };
+  }
+
+  return {
+    success: true,
+    message: "Membre retiré de l’organisation.",
+  };
+}

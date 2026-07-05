@@ -23,6 +23,12 @@ import { formatFileSize } from "@/lib/deadline-documents";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
 import { getDeadlineRenewalHistory } from "@/lib/renewal-history";
 import { getNextRecurringDate, getRecurrenceShortLabel, normalizeRecurrenceRule } from "@/lib/recurrence";
+import {
+  getDeadlineImportanceBadgeClassName,
+  getDeadlineImportanceDescription,
+  getDeadlineImportanceLabel,
+  normalizeDeadlineImportance,
+} from "@/lib/deadline-importance";
 import { ensureUserOrganization } from "@/lib/organizations";
 import { getAuthUserDisplayName } from "@/lib/user-display";
 import { createClient } from "@/lib/supabase/server";
@@ -42,6 +48,7 @@ type Deadline = {
   due_date: string;
   notification_days: number[] | null;
   recurrence_rule: string | null;
+  importance_level: string | null;
   created_at: string;
   user_id: string | null;
   organization_id: string | null;
@@ -242,7 +249,7 @@ export default async function DeadlineDetailPage({
 
   const { data: deadline, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, notification_days, recurrence_rule, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, claimed_at, completed_by, completed_at, archived_by, archived_at")
+    .select("id, title, category, due_date, notification_days, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, claimed_at, completed_by, completed_at, archived_by, archived_at")
     .eq("id", deadlineId)
     .or(
       buildDeadlineAccessOrFilter({
@@ -357,6 +364,8 @@ export default async function DeadlineDetailPage({
   const recurrenceLabel = getRecurrenceShortLabel(recurrenceRule);
   const nextRecurringDate = getNextRecurringDate(typedDeadline.due_date, recurrenceRule);
   const reminderCount = normalizedNotificationDays.length;
+  const importanceLevel = normalizeDeadlineImportance(typedDeadline.importance_level);
+  const importanceLabel = getDeadlineImportanceLabel(importanceLevel);
 
   const keyMetrics = [
     {
@@ -373,6 +382,12 @@ export default async function DeadlineDetailPage({
           ? normalizedNotificationDays.map(formatReminder).join(" · ")
           : "Aucun rappel configuré",
       className: "border-blue-400/25 bg-blue-400/10 text-blue-100",
+    },
+    {
+      label: "Importance",
+      value: importanceLabel,
+      helper: getDeadlineImportanceDescription(importanceLevel),
+      className: getDeadlineImportanceBadgeClassName(importanceLevel),
     },
     {
       label: "Document",
@@ -466,6 +481,9 @@ Fiche échéance
                   <span className={`rounded-full border px-3 py-1 ${getDeadlineWorkflowBadgeClassName(workflowStatus)}`}>
                     {workflowLabel}
                   </span>
+                  <span className={`rounded-full border px-3 py-1 ${getDeadlineImportanceBadgeClassName(importanceLevel)}`}>
+                    Importance : {importanceLabel}
+                  </span>
                 </div>
               </div>
 
@@ -487,7 +505,7 @@ Fiche échéance
           </div>
         </section>
 
-        <section className="mt-6 grid gap-4 lg:grid-cols-3">
+        <section className="mt-6 grid gap-4 lg:grid-cols-4">
           {keyMetrics.map((metric) => (
             <div
               key={metric.label}
@@ -547,6 +565,14 @@ Fiche échéance
                   </p>
                   <p className="mt-2 font-semibold text-slate-100">
                     {getReadableStatus(daysUntilDeadline)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Importance
+                  </p>
+                  <p className="mt-2 font-semibold text-slate-100">
+                    {importanceLabel}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">

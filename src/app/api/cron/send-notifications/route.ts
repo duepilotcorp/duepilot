@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { createActivityLog } from "@/lib/activity-logs";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
+import { getDeadlineImportanceLabel } from "@/lib/deadline-importance";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -88,7 +89,7 @@ export async function GET(request: Request) {
 
   const { data: deadlines, error } = await supabaseAdmin
     .from("deadlines")
-    .select("id, title, category, due_date, user_id, notification_days, workflow_status, recurrence_rule")
+    .select("id, title, category, due_date, user_id, notification_days, workflow_status, recurrence_rule, importance_level")
     .order("due_date", { ascending: true });
 
   if (error) {
@@ -139,6 +140,9 @@ export async function GET(request: Request) {
     const safeRecurrenceLabel = escapeHtml(
       getRecurrenceShortLabel(deadline.recurrence_rule)
     );
+    const safeImportanceLabel = escapeHtml(
+      getDeadlineImportanceLabel(deadline.importance_level)
+    );
 
     const { error: emailError } = await resend.emails.send({
       from: "DuePilot <notifications@duepilot.fr>",
@@ -162,6 +166,10 @@ export async function GET(request: Request) {
 
         <p>
           Récurrence : ${safeRecurrenceLabel}
+        </p>
+
+        <p>
+          Importance : ${safeImportanceLabel}
         </p>
 
         <br>
@@ -195,6 +203,7 @@ export async function GET(request: Request) {
         notification_day: daysUntilDueDate,
         due_date: deadline.due_date,
         recurrence_rule: deadline.recurrence_rule ?? "none",
+        importance_level: deadline.importance_level ?? "normal",
         email,
       },
     });

@@ -18,6 +18,13 @@ import {
 } from "@/lib/deadline-access";
 import { ensureUserOrganization } from "@/lib/organizations";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
+import {
+  getDeadlineImportanceBadgeClassName,
+  getDeadlineImportanceDotClassName,
+  getDeadlineImportanceLabel,
+  normalizeDeadlineImportance,
+  type DeadlineImportanceLevel,
+} from "@/lib/deadline-importance";
 import { isUserAdmin } from "@/lib/user-roles";
 import { getUserDisplayName } from "@/lib/user-display";
 import { createClient } from "@/lib/supabase/server";
@@ -30,6 +37,7 @@ type Deadline = {
   category: string | null;
   due_date: string;
   recurrence_rule: string | null;
+  importance_level: string | null;
   created_at: string;
   user_id: string | null;
   organization_id: string | null;
@@ -56,6 +64,10 @@ type EnrichedDeadline = Deadline & {
   visibilityClassName: string;
   workflowClassName: string;
   recurrenceLabel: string;
+  importanceLevel: DeadlineImportanceLevel;
+  importanceLabel: string;
+  importanceClassName: string;
+  importanceDotClassName: string;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -421,7 +433,7 @@ export default async function DeadlinesPage({
 
   const { data: deadlines, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, recurrence_rule, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, completed_by")
+    .select("id, title, category, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, completed_by")
     .or(
       buildDeadlineAccessOrFilter({
         userId: user.id,
@@ -457,6 +469,7 @@ export default async function DeadlinesPage({
     const categoryLabel = deadline.category?.trim() || "Sans catégorie";
     const visibility = normalizeDeadlineVisibility(deadline.visibility);
     const workflowStatus = normalizeDeadlineWorkflowStatus(deadline.workflow_status);
+    const importanceLevel = normalizeDeadlineImportance(deadline.importance_level);
 
     return {
       ...deadline,
@@ -467,6 +480,10 @@ export default async function DeadlinesPage({
       visibilityClassName: getDeadlineVisibilityBadgeClassName(visibility),
       workflowClassName: getDeadlineWorkflowBadgeClassName(workflowStatus),
       recurrenceLabel: getRecurrenceShortLabel(deadline.recurrence_rule),
+      importanceLevel,
+      importanceLabel: getDeadlineImportanceLabel(importanceLevel),
+      importanceClassName: getDeadlineImportanceBadgeClassName(importanceLevel),
+      importanceDotClassName: getDeadlineImportanceDotClassName(importanceLevel),
       categoryLabel,
       daysUntilDeadline,
       formattedDate: formatDeadlineDate(deadline.due_date),
@@ -523,6 +540,7 @@ export default async function DeadlinesPage({
         deadline.readableStatus,
         deadline.priorityLabel,
         deadline.recurrenceLabel,
+        deadline.importanceLabel,
         deadline.document?.file_name ?? "",
       ]
         .join(" ")
@@ -769,10 +787,38 @@ export default async function DeadlinesPage({
             <DeadlineOnboardingEmptyState embedded variant="deadlines" />
           ) : (
             <>
-              <form
-                action="/deadlines"
-                className="border-b border-white/10 bg-slate-950/20 p-5 sm:p-6"
-              >
+              <details className="border-b border-white/10 bg-slate-950/20 group">
+                <summary className="flex cursor-pointer list-none flex-col gap-3 p-5 transition hover:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between sm:p-6 [&::-webkit-details-marker]:hidden">
+                  <div>
+                    <p className="text-sm font-bold text-white">Filtres et tri</p>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {hasActiveFilters
+                        ? `${activeFilters.length + (sortOption !== "due_asc" ? 1 : 0)} réglage${activeFilters.length + (sortOption !== "due_asc" ? 1 : 0) > 1 ? "s" : ""} actif${activeFilters.length + (sortOption !== "due_asc" ? 1 : 0) > 1 ? "s" : ""}`
+                        : "Ouvrir pour rechercher, trier ou filtrer le registre."}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-300">
+                    {activeFilters.length > 0 ? (
+                      activeFilters.slice(0, 3).map((filter) => (
+                        <span key={filter} className="rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-blue-100">
+                          {filter}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
+                        Aucun filtre
+                      </span>
+                    )}
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 transition group-open:rotate-180">
+                      ⌄
+                    </span>
+                  </div>
+                </summary>
+
+                <form
+                  action="/deadlines"
+                  className="border-t border-white/10 p-5 sm:p-6"
+                >
                 <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr_0.7fr_0.75fr_0.75fr_auto] xl:items-end">
                   <label className="block">
                     <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -925,7 +971,8 @@ export default async function DeadlinesPage({
                     </div>
                   ) : null}
                 </div>
-              </form>
+                </form>
+              </details>
 
               {scopeFilter === "history" ? (
             <div className="border-b border-white/10 bg-slate-950/35 px-5 py-4 text-sm leading-6 text-slate-300 sm:px-6">
@@ -994,6 +1041,10 @@ export default async function DeadlinesPage({
                                     </span>
                                     <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.workflowClassName}`}>
                                       {deadline.workflowLabel}
+                                    </span>
+                                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.importanceClassName}`}>
+                                      <span className={`h-1.5 w-1.5 rounded-full ${deadline.importanceDotClassName}`} />
+                                      {deadline.importanceLabel}
                                     </span>
                                   </div>
                                   {deadline.document ? (
@@ -1090,6 +1141,10 @@ export default async function DeadlinesPage({
                               <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.workflowClassName}`}>
                                 {deadline.workflowLabel}
                               </span>
+                              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.importanceClassName}`}>
+                                <span className={`h-1.5 w-1.5 rounded-full ${deadline.importanceDotClassName}`} />
+                                {deadline.importanceLabel}
+                              </span>
                             </div>
                           </div>
 
@@ -1118,6 +1173,13 @@ export default async function DeadlinesPage({
                             <p className="mt-1 font-medium text-slate-100">
                               {deadline.recurrenceLabel}
                             </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Importance</p>
+                            <span className={`mt-1 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.importanceClassName}`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${deadline.importanceDotClassName}`} />
+                              {deadline.importanceLabel}
+                            </span>
                           </div>
                           <div className="sm:col-span-2">
                             <p className="text-slate-500">Document</p>

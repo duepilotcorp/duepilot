@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import DateField from "@/components/DateField";
 import DeadlineDocumentField from "@/components/DeadlineDocumentField";
+import DeadlineImportanceSelector from "@/components/DeadlineImportanceSelector";
 import { createActivityLogs, type CreateActivityLogParams } from "@/lib/activity-logs";
 import NotificationDaysSelector, {
   DEFAULT_NOTIFICATION_DAYS,
@@ -18,6 +19,11 @@ import type { DeadlineDocument } from "@/lib/deadline-documents";
 import { normalizeRecurrenceRule, RECURRENCE_SHORT_LABELS, type RecurrenceRule } from "@/lib/recurrence";
 import RecurrenceSelector from "@/components/RecurrenceSelector";
 import { createClient } from "@/lib/supabase/client";
+import {
+  DEADLINE_IMPORTANCE_LABELS,
+  normalizeDeadlineImportance,
+  type DeadlineImportanceLevel,
+} from "@/lib/deadline-importance";
 
 const CATEGORY_SUGGESTIONS = [
   "Assurance",
@@ -42,6 +48,7 @@ type Deadline = {
   due_date: string;
   notification_days?: number[] | null;
   recurrence_rule?: string | null;
+  importance_level?: string | null;
   created_at?: string;
   user_id?: string | null;
 };
@@ -180,6 +187,10 @@ export default function EditDeadlineForm({
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>(
     normalizeRecurrenceRule(deadline.recurrence_rule)
   );
+  const [importanceLevel, setImportanceLevel] =
+    useState<DeadlineImportanceLevel>(
+      normalizeDeadlineImportance(deadline.importance_level)
+    );
   const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(
     null
   );
@@ -204,6 +215,7 @@ export default function EditDeadlineForm({
     JSON.stringify(normalizedNotificationDays) !==
       JSON.stringify(initialNotificationDays) ||
     recurrenceRule !== normalizeRecurrenceRule(deadline.recurrence_rule) ||
+    importanceLevel !== normalizeDeadlineImportance(deadline.importance_level) ||
     hasDocumentChanges;
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -246,6 +258,7 @@ export default function EditDeadlineForm({
         due_date: dueDate,
         notification_days: selectedNotificationDays,
         recurrence_rule: recurrenceRule,
+        importance_level: importanceLevel,
       })
       .eq("id", deadline.id);
 
@@ -363,6 +376,21 @@ export default function EditDeadlineForm({
         metadata: {
           previous_recurrence_rule: normalizeRecurrenceRule(deadline.recurrence_rule),
           new_recurrence_rule: recurrenceRule,
+        },
+      });
+    }
+
+    if (importanceLevel !== normalizeDeadlineImportance(deadline.importance_level)) {
+      activityLogs.push({
+        supabase,
+        userId: user.id,
+        deadlineId: deadline.id,
+        action: "deadline.importance_updated",
+        title: "Importance modifiée",
+        description: `L’importance est passée de « ${DEADLINE_IMPORTANCE_LABELS[normalizeDeadlineImportance(deadline.importance_level)]} » à « ${DEADLINE_IMPORTANCE_LABELS[importanceLevel]} ».`,
+        metadata: {
+          previous_importance_level: normalizeDeadlineImportance(deadline.importance_level),
+          new_importance_level: importanceLevel,
         },
       });
     }
@@ -506,6 +534,13 @@ export default function EditDeadlineForm({
           </div>
         </section>
 
+        <DeadlineImportanceSelector
+          value={importanceLevel}
+          onChange={setImportanceLevel}
+          disabled={isLoading}
+          stepLabel="Criticité"
+        />
+
         <RecurrenceSelector
           value={recurrenceRule}
           onChange={setRecurrenceRule}
@@ -613,6 +648,15 @@ export default function EditDeadlineForm({
               </p>
               <p className="mt-1 text-slate-300">
                 {RECURRENCE_SHORT_LABELS[recurrenceRule]}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-600">
+                Importance
+              </p>
+              <p className="mt-1 text-slate-300">
+                {DEADLINE_IMPORTANCE_LABELS[importanceLevel]}
               </p>
             </div>
 

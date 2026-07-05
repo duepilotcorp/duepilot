@@ -9,9 +9,11 @@ import {
 import {
   cancelOrganizationInvitation,
   canManageOrganizationTeam,
+  disableOrganizationMember,
   getOrganizationInvitations,
   getOrganizationMembers,
   inviteOrganizationMember,
+  updateOrganizationMemberRole,
 } from "@/lib/team-invitations";
 import { createClient } from "@/lib/supabase/server";
 import { getUserDisplayName } from "@/lib/user-display";
@@ -191,6 +193,90 @@ async function cancelInvitationAction(formData: FormData) {
   redirect("/settings/organization?canceled=1");
 }
 
+
+async function updateMemberRoleAction(formData: FormData) {
+  "use server";
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    redirect("/login");
+  }
+
+  const userOrganization = await ensureUserOrganization({
+    userId: user.id,
+    email: user.email,
+  });
+
+  if (!userOrganization) {
+    redirect("/settings/organization?error=organization");
+  }
+
+  const result = await updateOrganizationMemberRole({
+    organizationId: userOrganization.organization.id,
+    actingUserId: user.id,
+    actingUserRole: userOrganization.membership.role,
+    targetUserId: String(formData.get("userId") ?? ""),
+    newRole: String(formData.get("role") ?? "member"),
+  });
+
+  revalidatePath("/settings/organization");
+  revalidatePath("/settings/account");
+  revalidatePath("/dashboard");
+  revalidatePath("/deadlines");
+
+  if (!result.success) {
+    redirect(`/settings/organization?error=${encodeURIComponent(result.message)}`);
+  }
+
+  redirect("/settings/organization?roleUpdated=1");
+}
+
+async function removeMemberAction(formData: FormData) {
+  "use server";
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    redirect("/login");
+  }
+
+  const userOrganization = await ensureUserOrganization({
+    userId: user.id,
+    email: user.email,
+  });
+
+  if (!userOrganization) {
+    redirect("/settings/organization?error=organization");
+  }
+
+  const result = await disableOrganizationMember({
+    organizationId: userOrganization.organization.id,
+    actingUserId: user.id,
+    actingUserRole: userOrganization.membership.role,
+    targetUserId: String(formData.get("userId") ?? ""),
+  });
+
+  revalidatePath("/settings/organization");
+  revalidatePath("/settings/account");
+  revalidatePath("/dashboard");
+  revalidatePath("/deadlines");
+
+  if (!result.success) {
+    redirect(`/settings/organization?error=${encodeURIComponent(result.message)}`);
+  }
+
+  redirect("/settings/organization?memberRemoved=1");
+}
+
 export default async function OrganizationSettingsPage({
   searchParams,
 }: OrganizationSettingsPageProps) {
@@ -200,6 +286,8 @@ export default async function OrganizationSettingsPage({
   const invited = getSearchParam(params, "invited") === "1";
   const canceled = getSearchParam(params, "canceled") === "1";
   const accepted = getSearchParam(params, "accepted") === "1";
+  const roleUpdated = getSearchParam(params, "roleUpdated") === "1";
+  const memberRemoved = getSearchParam(params, "memberRemoved") === "1";
   const error = getSearchParam(params, "error");
 
   const {
@@ -296,7 +384,7 @@ export default async function OrganizationSettingsPage({
           </div>
         </section>
 
-        {saved || invited || canceled || accepted || error ? (
+        {saved || invited || canceled || accepted || roleUpdated || memberRemoved || error ? (
           <div className="mt-5 grid gap-3">
             {saved ? (
               <p className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
@@ -316,6 +404,16 @@ export default async function OrganizationSettingsPage({
             {accepted ? (
               <p className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
                 Invitation acceptée. Le membre est maintenant rattaché à l’entreprise.
+              </p>
+            ) : null}
+            {roleUpdated ? (
+              <p className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+                Rôle du membre mis à jour.
+              </p>
+            ) : null}
+            {memberRemoved ? (
+              <p className="rounded-2xl border border-slate-400/20 bg-slate-400/10 px-4 py-3 text-sm text-slate-200">
+                Membre retiré de l’organisation.
               </p>
             ) : null}
             {error ? (
@@ -461,29 +559,97 @@ export default async function OrganizationSettingsPage({
             <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-black/10">
               <h2 className="text-2xl font-bold text-white">Composition de l’équipe</h2>
               <div className="mt-5 grid gap-3">
-                {members.map((member) => (
-                  <div
-                    key={member.userId}
-                    className="rounded-2xl border border-white/10 bg-slate-950/55 p-4"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <p className="break-words font-semibold text-white">
-                          {member.displayName}
-                        </p>
-                        <p className="mt-1 break-words text-sm text-slate-500">
-                          {member.email}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-400">
-                          Ajouté le {formatDate(member.createdAt)}
-                        </p>
+                {members.map((member) => {
+                  const isCurrentUser = member.userId === user.id;
+                  const isOwnerMember = member.role === "owner";
+                  const isAdminMember = member.role === "admin";
+                  const canEditThisMember =
+                    canManageOrganization &&
+                    !isCurrentUser &&
+                    !isOwnerMember &&
+                    (membership.role === "owner" || !isAdminMember);
+
+                  return (
+                    <div
+                      key={member.userId}
+                      className="rounded-2xl border border-white/10 bg-slate-950/55 p-4"
+                    >
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="break-words font-semibold text-white">
+                            {member.displayName}
+                          </p>
+                          <p className="mt-1 break-words text-sm text-slate-500">
+                            {member.email}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-400">
+                            Ajouté le {formatDate(member.createdAt)}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 sm:justify-end">
+                          <span className="w-fit rounded-full border border-blue-400/25 bg-blue-400/10 px-3 py-1 text-xs font-semibold text-blue-100">
+                            {member.roleLabel}
+                          </span>
+                          {isCurrentUser ? (
+                            <span className="w-fit rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+                              Vous
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
-                      <span className="w-fit rounded-full border border-blue-400/25 bg-blue-400/10 px-3 py-1 text-xs font-semibold text-blue-100">
-                        {member.roleLabel}
-                      </span>
+
+                      {canManageOrganization ? (
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                          {canEditThisMember ? (
+                            <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+                              <form action={updateMemberRoleAction} className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                                <input type="hidden" name="userId" value={member.userId} />
+                                <label className="grid gap-2">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                    Modifier le rôle
+                                  </span>
+                                  <select
+                                    name="role"
+                                    defaultValue={member.role}
+                                    className="rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none transition focus:border-blue-400/60"
+                                  >
+                                    <option value="admin">Administrateur</option>
+                                    <option value="member">Membre</option>
+                                    <option value="viewer">Lecteur</option>
+                                  </select>
+                                </label>
+                                <button
+                                  type="submit"
+                                  className="rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-xs font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white"
+                                >
+                                  Mettre à jour
+                                </button>
+                              </form>
+
+                              <form action={removeMemberAction}>
+                                <input type="hidden" name="userId" value={member.userId} />
+                                <button
+                                  type="submit"
+                                  className="w-full rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-2 text-xs font-semibold text-red-100 transition hover:border-red-300/40 hover:bg-red-400/15 lg:w-auto"
+                                >
+                                  Supprimer
+                                </button>
+                              </form>
+                            </div>
+                          ) : (
+                            <p className="text-xs leading-5 text-slate-500">
+                              {isOwnerMember
+                                ? "Le propriétaire ne peut pas être modifié depuis cette page."
+                                : isCurrentUser
+                                  ? "Votre propre rôle et votre accès ne peuvent pas être modifiés ici."
+                                  : "Seul le propriétaire peut modifier ou supprimer un administrateur."}
+                            </p>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {members.length === 0 ? (
                   <p className="rounded-2xl border border-white/10 bg-slate-950/55 p-4 text-sm text-slate-400">

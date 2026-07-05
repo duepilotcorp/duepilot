@@ -15,37 +15,50 @@ export default function ResetPasswordPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [sessionMessage, setSessionMessage] = useState("Vérification du lien sécurisé...");
+  const [sessionState, setSessionState] = useState<"checking" | "valid" | "error" | "idle">("checking");
+  const [hasRecoverySession, setHasRecoverySession] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
+    const markValidSession = (message: string) => {
+      window.history.replaceState({}, document.title, "/reset-password");
+      setHasRecoverySession(true);
+      setSessionState("valid");
+      setSessionMessage(message);
+    };
+
+    const markInvalidSession = () => {
+      setHasRecoverySession(false);
+      setSessionState("error");
+      setSessionMessage(
+        "Lien de réinitialisation invalide ou expiré. Demandez un nouveau lien depuis la page de connexion."
+      );
+    };
+
     const hydrateRecoverySession = async () => {
       const currentUrl = new URL(window.location.href);
       const code = currentUrl.searchParams.get("code");
-
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-
-        if (!isMounted) return;
-
-        if (error) {
-          setSessionMessage(
-            "Lien de réinitialisation invalide ou expiré. Demandez un nouveau lien."
-          );
-          return;
-        }
-
-        window.history.replaceState({}, document.title, "/reset-password");
-        setSessionMessage("Lien sécurisé validé. Vous pouvez choisir un nouveau mot de passe.");
-        return;
-      }
-
+      const searchErrorCode = currentUrl.searchParams.get("error_code");
       const hash = window.location.hash.startsWith("#")
         ? window.location.hash.slice(1)
         : window.location.hash;
       const hashParams = new URLSearchParams(hash);
       const accessToken = hashParams.get("access_token");
       const refreshToken = hashParams.get("refresh_token");
+      const hashErrorCode = hashParams.get("error_code");
+      const hasUrlResetError = Boolean(searchErrorCode || hashErrorCode);
+
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+        if (!isMounted) return;
+
+        if (!error) {
+          markValidSession("Lien sécurisé validé. Vous pouvez choisir un nouveau mot de passe.");
+          return;
+        }
+      }
 
       if (accessToken && refreshToken) {
         const { error } = await supabase.auth.setSession({
@@ -55,16 +68,10 @@ export default function ResetPasswordPage() {
 
         if (!isMounted) return;
 
-        if (error) {
-          setSessionMessage(
-            "Lien de réinitialisation invalide ou expiré. Demandez un nouveau lien."
-          );
+        if (!error) {
+          markValidSession("Lien sécurisé validé. Vous pouvez choisir un nouveau mot de passe.");
           return;
         }
-
-        window.history.replaceState({}, document.title, "/reset-password");
-        setSessionMessage("Lien sécurisé validé. Vous pouvez choisir un nouveau mot de passe.");
-        return;
       }
 
       const {
@@ -73,10 +80,22 @@ export default function ResetPasswordPage() {
 
       if (!isMounted) return;
 
+      if (session) {
+        markValidSession(
+          "Session sécurisée détectée. Vous pouvez choisir un nouveau mot de passe."
+        );
+        return;
+      }
+
+      if (hasUrlResetError) {
+        markInvalidSession();
+        return;
+      }
+
+      setHasRecoverySession(false);
+      setSessionState("idle");
       setSessionMessage(
-        session
-          ? "Session sécurisée détectée. Vous pouvez choisir un nouveau mot de passe."
-          : "Ouvrez cette page depuis le lien reçu par email pour activer la réinitialisation."
+        "Ouvrez cette page depuis le lien reçu par email pour activer la réinitialisation."
       );
     };
 
@@ -94,6 +113,11 @@ export default function ResetPasswordPage() {
 
     setSuccessMessage("");
     setErrorMessage("");
+
+    if (!hasRecoverySession) {
+      setErrorMessage("Ouvrez le lien reçu par email avant de choisir un nouveau mot de passe.");
+      return;
+    }
 
     if (password.length < 8) {
       setErrorMessage("Le mot de passe doit contenir au moins 8 caractères.");
@@ -152,7 +176,15 @@ export default function ResetPasswordPage() {
               </p>
             </div>
 
-            <p className="mt-6 rounded-2xl border border-blue-400/20 bg-blue-400/10 px-4 py-3 text-sm leading-6 text-blue-100">
+            <p
+              className={`mt-6 rounded-2xl border px-4 py-3 text-sm leading-6 ${
+                sessionState === "error"
+                  ? "border-red-400/25 bg-red-400/10 text-red-100"
+                  : sessionState === "valid"
+                    ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
+                    : "border-blue-400/20 bg-blue-400/10 text-blue-100"
+              }`}
+            >
               {sessionMessage}
             </p>
 
@@ -164,7 +196,7 @@ export default function ResetPasswordPage() {
                 onChange={setPassword}
                 autoComplete="new-password"
                 placeholder="Minimum 8 caractères"
-                disabled={isLoading}
+                disabled={isLoading || !hasRecoverySession}
                 showStrength
               />
 
@@ -175,7 +207,7 @@ export default function ResetPasswordPage() {
                 onChange={setConfirmPassword}
                 autoComplete="new-password"
                 placeholder="Répétez le même mot de passe"
-                disabled={isLoading}
+                disabled={isLoading || !hasRecoverySession}
               />
 
               {successMessage ? (
@@ -192,7 +224,7 @@ export default function ResetPasswordPage() {
 
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !hasRecoverySession}
                 className="w-full rounded-2xl bg-blue-500 px-6 py-4 text-sm font-semibold text-white shadow-2xl shadow-blue-500/20 transition hover:-translate-y-0.5 hover:bg-blue-400 disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-blue-500/50 disabled:shadow-none"
               >
                 {isLoading ? "Modification..." : "Enregistrer le nouveau mot de passe"}

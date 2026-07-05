@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import DateField from "@/components/DateField";
 import DeadlineDocumentField from "@/components/DeadlineDocumentField";
 import DeadlineTemplatePicker from "@/components/DeadlineTemplatePicker";
+import DeadlineImportanceSelector from "@/components/DeadlineImportanceSelector";
 import RecurrenceSelector from "@/components/RecurrenceSelector";
 import NotificationDaysSelector, {
   DEFAULT_NOTIFICATION_DAYS,
@@ -17,6 +18,10 @@ import { saveDeadlineDocument } from "@/lib/deadline-document-actions";
 import type { DeadlineTemplate } from "@/lib/deadline-templates";
 import { RECURRENCE_SHORT_LABELS, type RecurrenceRule } from "@/lib/recurrence";
 import { createClient } from "@/lib/supabase/client";
+import {
+  DEADLINE_IMPORTANCE_LABELS,
+  type DeadlineImportanceLevel,
+} from "@/lib/deadline-importance";
 
 const CATEGORY_SUGGESTIONS = [
   "Assurance",
@@ -147,6 +152,8 @@ export default function NewDeadlinePage() {
   );
   const [visibility, setVisibility] = useState<DeadlineVisibility>("personal");
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>("none");
+  const [importanceLevel, setImportanceLevel] =
+    useState<DeadlineImportanceLevel>("normal");
   const [canCreateTeamDeadline, setCanCreateTeamDeadline] = useState(false);
   const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(
     null
@@ -269,6 +276,7 @@ export default function NewDeadlinePage() {
         workflow_status: "open",
         notification_days: selectedNotificationDays,
         recurrence_rule: recurrenceRule,
+        importance_level: importanceLevel,
       })
       .select("id")
       .single();
@@ -317,6 +325,7 @@ export default function NewDeadlinePage() {
           due_date: dueDate,
           notification_days: selectedNotificationDays,
           recurrence_rule: recurrenceRule,
+          importance_level: importanceLevel,
           template: appliedTemplateName || null,
           visibility: safeVisibility,
         },
@@ -384,6 +393,7 @@ export default function NewDeadlinePage() {
                 <p>{formatDateForPreview(dueDate)}</p>
                 <p>{getReminderPreview(normalizedNotificationDays)}</p>
                 <p>Récurrence : {RECURRENCE_SHORT_LABELS[recurrenceRule]}</p>
+                <p>Importance : {DEADLINE_IMPORTANCE_LABELS[importanceLevel]}</p>
                 <p>
                   {appliedTemplateName
                     ? `Modèle : ${appliedTemplateName}`
@@ -544,6 +554,13 @@ export default function NewDeadlinePage() {
                 />
               </div>
             </section>
+
+            <DeadlineImportanceSelector
+              value={importanceLevel}
+              onChange={setImportanceLevel}
+              disabled={isLoading}
+              stepLabel="Criticité"
+            />
 
             <RecurrenceSelector
               value={recurrenceRule}

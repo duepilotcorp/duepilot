@@ -10,6 +10,7 @@ export type ActivityLogAction =
   | "deadline.title_updated"
   | "deadline.category_updated"
   | "deadline.due_date_updated"
+  | "deadline.importance_updated"
   | "deadline.reminders_updated"
   | "deadline.recurrence_updated"
   | "deadline.renewed"

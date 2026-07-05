@@ -5,6 +5,7 @@ import { buildDeadlineAccessOrFilter, canEditDeadline, normalizeDeadlineVisibili
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
 import { ensureUserOrganization } from "@/lib/organizations";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
+import { getDeadlineImportanceLabel } from "@/lib/deadline-importance";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ type Deadline = {
   due_date: string;
   notification_days: number[] | null;
   recurrence_rule: string | null;
+  importance_level: string | null;
   created_at: string;
   user_id: string | null;
   organization_id: string | null;
@@ -80,7 +82,7 @@ export default async function EditDeadlinePage({
   const { data: deadline, error } = await supabase
     .from("deadlines")
     .select(
-      "id, title, category, due_date, notification_days, recurrence_rule, created_at, user_id, organization_id, visibility, workflow_status"
+      "id, title, category, due_date, notification_days, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status"
     )
     .eq("id", id)
     .or(
@@ -195,6 +197,7 @@ export default async function EditDeadlinePage({
                     : "Rappels par défaut"}
                 </p>
                 <p>Récurrence : {getRecurrenceShortLabel(editableDeadline.recurrence_rule)}</p>
+                <p>Importance : {getDeadlineImportanceLabel(editableDeadline.importance_level)}</p>
                 <p className="break-all leading-6">
                   {deadlineDocument
                     ? `Document : ${deadlineDocument.file_name}`

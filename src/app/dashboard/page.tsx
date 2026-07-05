@@ -14,6 +14,10 @@ import {
 import { getDeadlineDocumentsByDeadlineId } from "@/lib/deadline-documents-server";
 import { ensureUserOrganization } from "@/lib/organizations";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
+import {
+  getDeadlineImportanceBadgeClassName,
+  getDeadlineImportanceLabel,
+} from "@/lib/deadline-importance";
 import { isUserAdmin } from "@/lib/user-roles";
 import { getUserDisplayName } from "@/lib/user-display";
 import { createClient } from "@/lib/supabase/server";
@@ -26,6 +30,7 @@ type Deadline = {
   category: string;
   due_date: string;
   recurrence_rule: string | null;
+  importance_level: string | null;
   created_at: string;
   user_id: string | null;
   organization_id: string | null;
@@ -197,7 +202,7 @@ export default async function DashboardPage() {
 
   const { data: deadlines, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, recurrence_rule, created_at, user_id, organization_id, visibility, workflow_status")
+    .select("id, title, category, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
     .or(
       buildDeadlineAccessOrFilter({
         userId: user.id,
@@ -244,6 +249,8 @@ export default async function DashboardPage() {
       visibilityClassName: getDeadlineVisibilityBadgeClassName(normalizeDeadlineVisibility(deadline.visibility)),
       workflowClassName: getDeadlineWorkflowBadgeClassName(normalizeDeadlineWorkflowStatus(deadline.workflow_status)),
       recurrenceLabel: getRecurrenceShortLabel(deadline.recurrence_rule),
+      importanceLabel: getDeadlineImportanceLabel(deadline.importance_level),
+      importanceClassName: getDeadlineImportanceBadgeClassName(deadline.importance_level),
       document: documentsByDeadlineId.get(deadline.id) ?? null,
     };
   });
@@ -487,11 +494,16 @@ Santé administrative
                           <p className="mt-1 text-sm text-slate-400">
                             {deadline.category} · {deadline.formattedDate}
                           </p>
-                          {deadline.document ? (
-                            <span className="mt-2 inline-flex rounded-full border border-blue-400/20 bg-blue-400/10 px-2.5 py-1 text-xs font-semibold text-blue-100">
-                              PDF joint
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.importanceClassName}`}>
+                              {deadline.importanceLabel}
                             </span>
-                          ) : null}
+                            {deadline.document ? (
+                              <span className="inline-flex rounded-full border border-blue-400/20 bg-blue-400/10 px-2.5 py-1 text-xs font-semibold text-blue-100">
+                                PDF joint
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                         <span
                           className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold ${deadline.statusClassName}`}
