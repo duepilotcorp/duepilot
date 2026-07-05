@@ -402,7 +402,7 @@ export default function RenewDeadlineForm({
   };
 
   return (
-    <section className="mt-6 overflow-hidden rounded-[2rem] border border-emerald-400/20 bg-slate-900/85 shadow-2xl shadow-emerald-950/10">
+    <section id="renewal-action" className="mt-6 scroll-mt-8 overflow-hidden rounded-[2rem] border border-emerald-400/20 bg-slate-900/85 shadow-2xl shadow-emerald-950/10">
       <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-start">
         <div>
           <div className="inline-flex rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-100">
@@ -518,7 +518,7 @@ Clôturer cette échéance et planifier la suivante
                 onShouldRemoveExistingDocumentChange={setShouldRemoveDocument}
                 disabled={isLoading}
                 stepLabel="Optionnel"
-                description="Conservez le PDF actuel ou ajoutez le nouveau justificatif lié au renouvellement."
+                description="Conservez le document actuel ou ajoutez le nouveau justificatif lié au renouvellement."
                 emptyDescription="Vous pouvez renouveler cette échéance sans document et ajouter le justificatif plus tard."
               />
 

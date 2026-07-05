@@ -298,7 +298,7 @@ export function calculateAdministrativeRisk(
   if (counters.missingDocumentNext30Count > 0) {
     recommendations.push({
       title: "Compléter les justificatifs proches",
-      description: "Ajoutez les PDF manquants sur les échéances à moins de 30 jours pour renforcer la traçabilité.",
+      description: "Ajoutez les Document manquants sur les échéances à moins de 30 jours pour renforcer la traçabilité.",
       href: "/deadlines?status=next30",
     });
   }

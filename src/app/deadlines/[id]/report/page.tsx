@@ -378,12 +378,12 @@ export default async function DeadlineReportPage({
                     {document.file_name}
                   </p>
                   <p className="mt-2 text-sm text-slate-600">
-                    {formatFileSize(document.file_size)} · PDF sécurisé
+                    {formatFileSize(document.file_size)} · Document sécurisé
                   </p>
                 </div>
               ) : (
                 <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                  Aucun document PDF n’est associé à cette échéance.
+                  Aucun document n’est associé à cette échéance.
                 </p>
               )}
             </div>

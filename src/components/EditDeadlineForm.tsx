@@ -3,10 +3,21 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
+import CollapsibleFormSection from "@/components/CollapsibleFormSection";
 import DateField from "@/components/DateField";
 import DeadlineDocumentField from "@/components/DeadlineDocumentField";
 import DeadlineImportanceSelector from "@/components/DeadlineImportanceSelector";
+import DeadlineTreatmentOptions from "@/components/DeadlineTreatmentOptions";
 import { createActivityLogs, type CreateActivityLogParams } from "@/lib/activity-logs";
+import {
+  isValidUsefulLinkUrl,
+  normalizeChecklistItems,
+  normalizeTreatmentNote,
+  normalizeUsefulLinkLabel,
+  normalizeUsefulLinkUrl,
+  type DeadlineChecklistItem,
+  type EditableChecklistItem,
+} from "@/lib/deadline-treatment";
 import NotificationDaysSelector, {
   DEFAULT_NOTIFICATION_DAYS,
   normalizeNotificationDays,
@@ -49,6 +60,9 @@ type Deadline = {
   notification_days?: number[] | null;
   recurrence_rule?: string | null;
   importance_level?: string | null;
+  treatment_note?: string | null;
+  useful_link_url?: string | null;
+  useful_link_label?: string | null;
   created_at?: string;
   user_id?: string | null;
 };
@@ -56,6 +70,7 @@ type Deadline = {
 type EditDeadlineFormProps = {
   deadline: Deadline;
   document?: DeadlineDocument | null;
+  checklistItems?: DeadlineChecklistItem[];
   returnHref?: string;
 };
 
@@ -163,6 +178,7 @@ function getReminderPreview(days: number[]) {
 export default function EditDeadlineForm({
   deadline,
   document = null,
+  checklistItems: initialChecklistItems = [],
   returnHref = "/deadlines",
 }: EditDeadlineFormProps) {
   const router = useRouter();
@@ -195,6 +211,22 @@ export default function EditDeadlineForm({
     null
   );
   const [shouldRemoveDocument, setShouldRemoveDocument] = useState(false);
+  const [enableDocument, setEnableDocument] = useState(Boolean(document));
+  const [enableChecklist, setEnableChecklist] = useState(initialChecklistItems.length > 0);
+  const [enableNote, setEnableNote] = useState(Boolean(deadline.treatment_note?.trim()));
+  const [enableUsefulLink, setEnableUsefulLink] = useState(Boolean(deadline.useful_link_url?.trim()));
+  const [checklistItems, setChecklistItems] = useState<EditableChecklistItem[]>(
+    initialChecklistItems.length > 0
+      ? initialChecklistItems.map((item) => ({
+          id: item.id,
+          title: item.title,
+          is_completed: item.is_completed,
+        }))
+      : [{ title: "" }]
+  );
+  const [treatmentNote, setTreatmentNote] = useState(deadline.treatment_note ?? "");
+  const [usefulLinkLabel, setUsefulLinkLabel] = useState(deadline.useful_link_label ?? "");
+  const [usefulLinkUrl, setUsefulLinkUrl] = useState(deadline.useful_link_url ?? "");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -206,7 +238,32 @@ export default function EditDeadlineForm({
   const deadlinePreviewTitle = title.trim() || "Échéance sans nom";
   const deadlinePreviewCategory = category.trim() || "Catégorie non définie";
 
-  const hasDocumentChanges = Boolean(selectedDocumentFile) || shouldRemoveDocument;
+  const normalizedCurrentChecklistItems = useMemo(
+    () => (enableChecklist ? normalizeChecklistItems(checklistItems) : []),
+    [checklistItems, enableChecklist]
+  );
+  const normalizedInitialChecklistItems = useMemo(
+    () => normalizeChecklistItems(initialChecklistItems.map((item) => ({
+      id: item.id,
+      title: item.title,
+      is_completed: item.is_completed,
+    }))),
+    [initialChecklistItems]
+  );
+  const normalizedCurrentTreatmentNote = enableNote ? normalizeTreatmentNote(treatmentNote) : "";
+  const normalizedInitialTreatmentNote = normalizeTreatmentNote(deadline.treatment_note);
+  const normalizedCurrentUsefulLinkUrl = enableUsefulLink ? normalizeUsefulLinkUrl(usefulLinkUrl) : "";
+  const normalizedInitialUsefulLinkUrl = normalizeUsefulLinkUrl(deadline.useful_link_url);
+  const normalizedCurrentUsefulLinkLabel = enableUsefulLink ? normalizeUsefulLinkLabel(usefulLinkLabel) : "";
+  const normalizedInitialUsefulLinkLabel = normalizeUsefulLinkLabel(deadline.useful_link_label);
+
+  const hasDocumentChanges = Boolean(selectedDocumentFile) || shouldRemoveDocument || enableDocument !== Boolean(document);
+  const hasTreatmentChanges =
+    normalizedCurrentTreatmentNote !== normalizedInitialTreatmentNote ||
+    normalizedCurrentUsefulLinkUrl !== normalizedInitialUsefulLinkUrl ||
+    normalizedCurrentUsefulLinkLabel !== normalizedInitialUsefulLinkLabel ||
+    JSON.stringify(normalizedCurrentChecklistItems.map(({ id, title, is_completed }) => ({ id, title, is_completed: Boolean(is_completed) }))) !==
+      JSON.stringify(normalizedInitialChecklistItems.map(({ id, title, is_completed }) => ({ id, title, is_completed: Boolean(is_completed) })));
 
   const hasChanges =
     title.trim() !== deadline.title ||
@@ -216,7 +273,8 @@ export default function EditDeadlineForm({
       JSON.stringify(initialNotificationDays) ||
     recurrenceRule !== normalizeRecurrenceRule(deadline.recurrence_rule) ||
     importanceLevel !== normalizeDeadlineImportance(deadline.importance_level) ||
-    hasDocumentChanges;
+    hasDocumentChanges ||
+    hasTreatmentChanges;
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -234,6 +292,29 @@ export default function EditDeadlineForm({
 
     if (selectedNotificationDays.length === 0) {
       setErrorMessage("Sélectionnez au moins un rappel automatique.");
+      return;
+    }
+
+    const normalizedTreatmentNote = enableNote
+      ? normalizeTreatmentNote(treatmentNote)
+      : "";
+    const normalizedUsefulLinkUrl = enableUsefulLink
+      ? normalizeUsefulLinkUrl(usefulLinkUrl)
+      : "";
+    const normalizedUsefulLinkLabel = enableUsefulLink
+      ? normalizeUsefulLinkLabel(usefulLinkLabel)
+      : "";
+    const normalizedChecklistItems = enableChecklist
+      ? normalizeChecklistItems(checklistItems)
+      : [];
+
+    if (enableUsefulLink && !normalizedUsefulLinkUrl) {
+      setErrorMessage("Ajoutez une URL pour le lien utile ou désactivez cette option.");
+      return;
+    }
+
+    if (normalizedUsefulLinkUrl && !isValidUsefulLinkUrl(normalizedUsefulLinkUrl)) {
+      setErrorMessage("Le lien utile doit commencer par http:// ou https://.");
       return;
     }
 
@@ -259,6 +340,9 @@ export default function EditDeadlineForm({
         notification_days: selectedNotificationDays,
         recurrence_rule: recurrenceRule,
         importance_level: importanceLevel,
+        treatment_note: normalizedTreatmentNote || null,
+        useful_link_url: normalizedUsefulLinkUrl || null,
+        useful_link_label: normalizedUsefulLinkLabel || null,
       })
       .eq("id", deadline.id);
 
@@ -271,7 +355,7 @@ export default function EditDeadlineForm({
       return;
     }
 
-    if (selectedDocumentFile) {
+    if (enableDocument && selectedDocumentFile) {
       const documentResult = await saveDeadlineDocument({
         supabase,
         userId: user.id,
@@ -285,7 +369,7 @@ export default function EditDeadlineForm({
         setIsLoading(false);
         return;
       }
-    } else if (shouldRemoveDocument && document) {
+    } else if ((!enableDocument || shouldRemoveDocument) && document) {
       const documentResult = await deleteDeadlineDocument({
         supabase,
         userId: user.id,
@@ -295,6 +379,76 @@ export default function EditDeadlineForm({
 
       if (documentResult.errorMessage) {
         setErrorMessage(documentResult.errorMessage);
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    if (enableChecklist) {
+      const existingChecklistIds = initialChecklistItems.map((item) => item.id);
+      const retainedChecklistIds = normalizedChecklistItems
+        .map((item) => item.id)
+        .filter((itemId): itemId is number => Boolean(itemId));
+      const checklistIdsToDelete = existingChecklistIds.filter(
+        (itemId) => !retainedChecklistIds.includes(itemId)
+      );
+
+      if (checklistIdsToDelete.length > 0) {
+        const { error: deleteChecklistError } = await supabase
+          .from("deadline_checklist_items")
+          .delete()
+          .eq("deadline_id", deadline.id)
+          .in("id", checklistIdsToDelete);
+
+        if (deleteChecklistError) {
+          console.error(deleteChecklistError);
+          setErrorMessage("Impossible de mettre à jour la checklist pour le moment.");
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      for (const [index, item] of normalizedChecklistItems.entries()) {
+        if (item.id) {
+          const { error: updateChecklistError } = await supabase
+            .from("deadline_checklist_items")
+            .update({ title: item.title, position: index })
+            .eq("id", item.id)
+            .eq("deadline_id", deadline.id);
+
+          if (updateChecklistError) {
+            console.error(updateChecklistError);
+            setErrorMessage("Impossible de mettre à jour la checklist pour le moment.");
+            setIsLoading(false);
+            return;
+          }
+        } else {
+          const { error: insertChecklistError } = await supabase
+            .from("deadline_checklist_items")
+            .insert({
+              deadline_id: deadline.id,
+              title: item.title,
+              position: index,
+              created_by: user.id,
+            });
+
+          if (insertChecklistError) {
+            console.error(insertChecklistError);
+            setErrorMessage("Impossible d’ajouter une étape de checklist pour le moment.");
+            setIsLoading(false);
+            return;
+          }
+        }
+      }
+    } else if (initialChecklistItems.length > 0) {
+      const { error: deleteChecklistError } = await supabase
+        .from("deadline_checklist_items")
+        .delete()
+        .eq("deadline_id", deadline.id);
+
+      if (deleteChecklistError) {
+        console.error(deleteChecklistError);
+        setErrorMessage("Impossible de supprimer la checklist pour le moment.");
         setIsLoading(false);
         return;
       }
@@ -395,7 +549,7 @@ export default function EditDeadlineForm({
       });
     }
 
-    if (selectedDocumentFile) {
+    if (enableDocument && selectedDocumentFile) {
       const isReplacement = Boolean(document);
 
       activityLogs.push({
@@ -413,7 +567,7 @@ export default function EditDeadlineForm({
           new_file_size: selectedDocumentFile.size,
         },
       });
-    } else if (shouldRemoveDocument && document) {
+    } else if ((!enableDocument || shouldRemoveDocument) && document) {
       activityLogs.push({
         supabase,
         userId: user.id,
@@ -424,6 +578,22 @@ export default function EditDeadlineForm({
         metadata: {
           file_name: document.file_name,
           file_size: document.file_size,
+        },
+      });
+    }
+
+    if (hasTreatmentChanges) {
+      activityLogs.push({
+        supabase,
+        userId: user.id,
+        deadlineId: deadline.id,
+        action: "deadline.updated",
+        title: "Options de traitement modifiées",
+        description: "La checklist, la note ou le lien utile de cette échéance a été mis à jour.",
+        metadata: {
+          checklist_items_count: normalizedChecklistItems.length,
+          treatment_note: Boolean(normalizedTreatmentNote),
+          useful_link_url: Boolean(normalizedUsefulLinkUrl),
         },
       });
     }
@@ -541,30 +711,75 @@ export default function EditDeadlineForm({
           stepLabel="Criticité"
         />
 
-        <RecurrenceSelector
-          value={recurrenceRule}
-          onChange={setRecurrenceRule}
-          disabled={isLoading}
-          dueDate={dueDate}
-          stepLabel="Étape 2/4"
-        />
+        <CollapsibleFormSection
+          title="Options complémentaires"
+          description="Modifiez le document, la checklist, la note ou le lien utile associé à cette échéance."
+          badge="Personnalisation"
+          defaultOpen={enableDocument || enableChecklist || enableNote || enableUsefulLink}
+        >
+          <DeadlineTreatmentOptions
+            enableDocument={enableDocument}
+            onEnableDocumentChange={(value) => {
+              setEnableDocument(value);
+              if (!value) {
+                setSelectedDocumentFile(null);
+                setShouldRemoveDocument(Boolean(document));
+              } else {
+                setShouldRemoveDocument(false);
+              }
+            }}
+            enableChecklist={enableChecklist}
+            onEnableChecklistChange={setEnableChecklist}
+            enableNote={enableNote}
+            onEnableNoteChange={setEnableNote}
+            enableUsefulLink={enableUsefulLink}
+            onEnableUsefulLinkChange={setEnableUsefulLink}
+            checklistItems={checklistItems}
+            onChecklistItemsChange={setChecklistItems}
+            treatmentNote={treatmentNote}
+            onTreatmentNoteChange={setTreatmentNote}
+            usefulLinkLabel={usefulLinkLabel}
+            onUsefulLinkLabelChange={setUsefulLinkLabel}
+            usefulLinkUrl={usefulLinkUrl}
+            onUsefulLinkUrlChange={setUsefulLinkUrl}
+            disabled={isLoading}
+          />
+        </CollapsibleFormSection>
 
-        <DeadlineDocumentField
-          selectedFile={selectedDocumentFile}
-          onSelectedFileChange={setSelectedDocumentFile}
-          existingDocument={document}
-          shouldRemoveExistingDocument={shouldRemoveDocument}
-          onShouldRemoveExistingDocumentChange={setShouldRemoveDocument}
-          disabled={isLoading}
-          stepLabel="Étape 3/4"
-        />
+        {enableDocument ? (
+          <DeadlineDocumentField
+            selectedFile={selectedDocumentFile}
+            onSelectedFileChange={setSelectedDocumentFile}
+            existingDocument={document}
+            shouldRemoveExistingDocument={shouldRemoveDocument}
+            onShouldRemoveExistingDocumentChange={setShouldRemoveDocument}
+            disabled={isLoading}
+            stepLabel="Document"
+          />
+        ) : null}
 
-        <NotificationDaysSelector
-          selectedDays={notificationDays}
-          onChange={setNotificationDays}
-          disabled={isLoading}
-          stepLabel="Étape 4/4"
-        />
+        <CollapsibleFormSection
+          title="Rappels et récurrence"
+          description="Ajustez les rappels automatiques et la prochaine date proposée au renouvellement."
+          badge={`${normalizedNotificationDays.length} rappel${normalizedNotificationDays.length > 1 ? "s" : ""}`}
+        >
+          <div className="space-y-5">
+            <RecurrenceSelector
+              value={recurrenceRule}
+              onChange={setRecurrenceRule}
+              disabled={isLoading}
+              dueDate={dueDate}
+              stepLabel="Récurrence"
+            />
+
+            <NotificationDaysSelector
+              selectedDays={notificationDays}
+              onChange={setNotificationDays}
+              disabled={isLoading}
+              stepLabel="Rappels"
+            />
+          </div>
+        </CollapsibleFormSection>
 
         {errorMessage && (
           <div
@@ -665,11 +880,13 @@ export default function EditDeadlineForm({
                 Document
               </p>
               <p className="mt-1 break-words text-slate-300">
-                {selectedDocumentFile
-                  ? selectedDocumentFile.name
-                  : shouldRemoveDocument
-                    ? "Suppression prévue"
-                    : document?.file_name ?? "Aucun document"}
+                {enableDocument
+                  ? selectedDocumentFile
+                    ? selectedDocumentFile.name
+                    : shouldRemoveDocument
+                      ? "Suppression prévue"
+                      : document?.file_name ?? "Document activé sans fichier"
+                  : "Document désactivé"}
               </p>
             </div>
           </div>

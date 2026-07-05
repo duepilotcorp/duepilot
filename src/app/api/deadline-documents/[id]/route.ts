@@ -19,9 +19,9 @@ type DeadlineDocumentRow = {
 };
 
 function encodeContentDispositionFileName(fileName: string) {
-  const cleanedFileName = fileName.replace(/["\\\r\n]/g, "").trim() || "document.pdf";
+  const cleanedFileName = fileName.replace(/["\\\r\n]/g, "").trim() || "document";
   const fallbackFileName =
-    cleanedFileName.replace(/[^\x20-\x7E]/g, "_") || "document.pdf";
+    cleanedFileName.replace(/[^\x20-\x7E]/g, "_") || "document";
   const encodedFileName = encodeURIComponent(cleanedFileName).replace(
     /['()]/g,
     (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`
@@ -85,11 +85,13 @@ export async function GET(
   }
 
   const shouldDownload = request.nextUrl.searchParams.get("download") === "1";
-  const fileName = deadlineDocument.file_name || "document.pdf";
+  const fileName = deadlineDocument.file_name || "document";
   const arrayBuffer = await fileData.arrayBuffer();
 
+  const contentType = deadlineDocument.mime_type || fileData.type || "application/octet-stream";
+
   const headers: Record<string, string> = {
-    "Content-Type": "application/pdf",
+    "Content-Type": contentType,
     "Content-Length": String(fileData.size),
     "Accept-Ranges": "bytes",
     "Cache-Control": "private, max-age=0, must-revalidate",

@@ -5,6 +5,7 @@ import DeleteDeadlineButton from "@/components/DeleteDeadlineButton";
 import RenewDeadlineForm from "@/components/RenewDeadlineForm";
 import TeamDeadlineWorkflowActions from "@/components/TeamDeadlineWorkflowActions";
 import RenewalHistoryList from "@/components/RenewalHistoryList";
+import DeadlineTreatmentPanel from "@/components/DeadlineTreatmentPanel";
 import { getDeadlineActivityLogs } from "@/lib/activity-logs";
 import {
   buildDeadlineAccessOrFilter,
@@ -19,9 +20,10 @@ import {
   normalizeDeadlineVisibility,
   normalizeDeadlineWorkflowStatus,
 } from "@/lib/deadline-access";
-import { formatFileSize } from "@/lib/deadline-documents";
+import { formatFileSize, getDeadlineDocumentFormatLabel } from "@/lib/deadline-documents";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
 import { getDeadlineRenewalHistory } from "@/lib/renewal-history";
+import type { DeadlineChecklistItem } from "@/lib/deadline-treatment";
 import { getNextRecurringDate, getRecurrenceShortLabel, normalizeRecurrenceRule } from "@/lib/recurrence";
 import {
   getDeadlineImportanceBadgeClassName,
@@ -49,6 +51,9 @@ type Deadline = {
   notification_days: number[] | null;
   recurrence_rule: string | null;
   importance_level: string | null;
+  treatment_note: string | null;
+  useful_link_url: string | null;
+  useful_link_label: string | null;
   created_at: string;
   user_id: string | null;
   organization_id: string | null;
@@ -249,7 +254,7 @@ export default async function DeadlineDetailPage({
 
   const { data: deadline, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, notification_days, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, claimed_at, completed_by, completed_at, archived_by, archived_at")
+    .select("id, title, category, due_date, notification_days, recurrence_rule, importance_level, treatment_note, useful_link_url, useful_link_label, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, claimed_at, completed_by, completed_at, archived_by, archived_at")
     .eq("id", deadlineId)
     .or(
       buildDeadlineAccessOrFilter({
@@ -331,6 +336,21 @@ export default async function DeadlineDetailPage({
     deadlineId: typedDeadline.id,
   });
 
+  const { data: checklistItemsData, error: checklistItemsError } = await supabase
+    .from("deadline_checklist_items")
+    .select("id, deadline_id, title, is_completed, position, created_by, completed_by, completed_at, created_at, updated_at")
+    .eq("deadline_id", typedDeadline.id)
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (checklistItemsError) {
+    console.error(checklistItemsError);
+  }
+
+  const checklistItems = checklistItemsError
+    ? []
+    : ((checklistItemsData ?? []) as DeadlineChecklistItem[]);
+
   const { data: notificationLogs, error: notificationLogsError } = await supabase
     .from("notification_logs")
     .select("id, created_at, notification_day, due_date")
@@ -392,7 +412,7 @@ export default async function DeadlineDetailPage({
     {
       label: "Document",
       value: document ? "1" : "0",
-      helper: document ? "PDF associé" : "Aucun PDF joint",
+      helper: document ? `${getDeadlineDocumentFormatLabel(document.mime_type, document.file_name)} associé` : "Aucun document joint",
       className: document
         ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
         : "border-white/10 bg-white/[0.03] text-slate-200",
@@ -518,6 +538,67 @@ Fiche échéance
           ))}
         </section>
 
+        <section className={`mt-6 rounded-[2rem] border p-6 shadow-2xl shadow-slate-950/20 sm:p-7 ${
+          visibility === "team"
+            ? "border-cyan-400/20 bg-cyan-400/10"
+            : "border-violet-400/20 bg-violet-400/10"
+        }`}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="inline-flex rounded-full border border-white/15 bg-white/[0.08] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                {visibility === "team" ? "Suivi équipe" : "Suivi personnel"}
+              </div>
+              <h2 className="mt-4 text-2xl font-bold text-white">
+                {visibility === "team" ? "Qui travaille sur cette échéance ?" : "Où en est cette échéance ?"}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-100/80">
+                {visibility === "team"
+                  ? "Les membres peuvent indiquer qu’ils s’en occupent ou que l’action est faite. Les administrateurs valident ensuite pour déplacer l’échéance dans l’historique."
+                  : "Vous pouvez marquer cette échéance comme en cours, puis comme faite. Une échéance personnelle faite part directement dans l’historique."}
+              </p>
+            </div>
+            <span className={`inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold ${getDeadlineWorkflowBadgeClassName(workflowStatus)}`}>
+              {workflowLabel}
+            </span>
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_1fr]">
+            <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">En cours par</p>
+              <p className="mt-2 font-semibold text-white">
+                {claimedByDisplayName ?? "Personne pour le moment"}
+              </p>
+              {typedDeadline.claimed_at ? (
+                <p className="mt-1 text-xs text-slate-300/70">{formatDateTime(typedDeadline.claimed_at)}</p>
+              ) : null}
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Faite par</p>
+              <p className="mt-2 font-semibold text-white">
+                {completedByDisplayName ?? "Pas encore indiquée comme faite"}
+              </p>
+              {typedDeadline.completed_at ? (
+                <p className="mt-1 text-xs text-slate-300/70">{formatDateTime(typedDeadline.completed_at)}</p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <TeamDeadlineWorkflowActions
+              deadlineId={typedDeadline.id}
+              status={workflowStatus}
+              visibility={visibility}
+              canContribute={canContributeTeam}
+              canManage={canManageTeam}
+              isOwner={isOwner}
+              claimedByCurrentUser={claimedByCurrentUser}
+              completedByCurrentUser={completedByCurrentUser}
+            />
+          </div>
+        </section>
+
+
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.9fr]">
           <div className="space-y-6">
@@ -615,6 +696,94 @@ Fiche échéance
               </div>
             </section>
 
+          </div>
+
+          <aside className="space-y-6">
+            <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">
+                    Document associé
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Le justificatif ou fichier lié à cette obligation.
+                  </p>
+                </div>
+                <span className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xl">
+                  {document ? getDeadlineDocumentFormatLabel(document.mime_type, document.file_name) : "Doc"}
+                </span>
+              </div>
+
+              {document ? (
+                <div className="mt-6 rounded-3xl border border-blue-400/20 bg-blue-400/10 p-5">
+                  <p className="break-words text-lg font-bold text-white">
+                    {document.file_name}
+                  </p>
+                  <p className="mt-2 text-sm text-blue-100/80">
+                    {formatFileSize(document.file_size)} · fichier sécurisé
+                  </p>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                    <Link
+                      href={`/deadlines/documents/${document.id}`}
+                      className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
+                    >
+                      Voir le document
+                    </Link>
+                    <a
+                      href={`/api/deadline-documents/${document.id}?download=1`}
+                      className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                    >
+                      Télécharger
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-6 rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
+                  <p className="font-semibold text-white">Aucun document joint.</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    Ajoutez une attestation, un contrat, un certificat ou une image depuis la modification de l’échéance.
+                  </p>
+                  {canEditCurrentDeadline ? (
+                    <Link
+                      href={`/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
+                      className="mt-5 inline-flex justify-center rounded-xl border border-blue-400/25 bg-blue-400/10 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white"
+                    >
+                      Ajouter un document
+                    </Link>
+                  ) : null}
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
+              <div>
+                <h2 className="text-2xl font-bold text-white">
+                  Journal d’activité
+                </h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Les dernières actions enregistrées sur cette échéance.
+                </p>
+              </div>
+
+              <div className="mt-6">
+                <ActivityLogList logs={activityLogs} />
+              </div>
+            </section>
+
+          </aside>
+        </section>
+
+        <DeadlineTreatmentPanel
+          deadlineId={typedDeadline.id}
+          checklistItems={checklistItems}
+          treatmentNote={typedDeadline.treatment_note}
+          usefulLinkUrl={typedDeadline.useful_link_url}
+          usefulLinkLabel={typedDeadline.useful_link_label}
+          canEdit={canEditCurrentDeadline || canContributeTeam}
+        />
+
+        <section className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="space-y-6">
             <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -694,146 +863,10 @@ Fiche échéance
                 )}
               </div>
             </section>
+
           </div>
 
-          <aside className="space-y-6">
-            <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-white">
-                    Document associé
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-400">
-                    Le justificatif PDF lié à cette obligation.
-                  </p>
-                </div>
-                <span className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xl">
-                  PDF
-                </span>
-              </div>
-
-              {document ? (
-                <div className="mt-6 rounded-3xl border border-blue-400/20 bg-blue-400/10 p-5">
-                  <p className="break-words text-lg font-bold text-white">
-                    {document.file_name}
-                  </p>
-                  <p className="mt-2 text-sm text-blue-100/80">
-                    {formatFileSize(document.file_size)} · fichier sécurisé
-                  </p>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                    <Link
-                      href={`/deadlines/documents/${document.id}`}
-                      className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
-                    >
-                      Voir le PDF
-                    </Link>
-                    <a
-                      href={`/api/deadline-documents/${document.id}?download=1`}
-                      className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-                    >
-                      Télécharger
-                    </a>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-6 rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
-                  <p className="font-semibold text-white">Aucun document joint.</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    Ajoutez une attestation, un contrat ou un certificat PDF
-                    depuis la modification de l’échéance.
-                  </p>
-                  {canEditCurrentDeadline ? (
-                    <Link
-                      href={`/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
-                      className="mt-5 inline-flex justify-center rounded-xl border border-blue-400/25 bg-blue-400/10 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white"
-                    >
-                      Ajouter un PDF
-                    </Link>
-                  ) : null}
-                </div>
-              )}
-            </section>
-
-            <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
-              <div>
-                <h2 className="text-2xl font-bold text-white">
-                  Journal d’activité
-                </h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  Les dernières actions enregistrées sur cette échéance.
-                </p>
-              </div>
-
-              <div className="mt-6">
-                <ActivityLogList logs={activityLogs} />
-              </div>
-            </section>
-
-          </aside>
-        </section>
-
-
-        <section className={`mt-6 rounded-[2rem] border p-6 shadow-2xl shadow-slate-950/20 sm:p-7 ${
-          visibility === "team"
-            ? "border-cyan-400/20 bg-cyan-400/10"
-            : "border-violet-400/20 bg-violet-400/10"
-        }`}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="inline-flex rounded-full border border-white/15 bg-white/[0.08] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
-                {visibility === "team" ? "Suivi équipe" : "Suivi personnel"}
-              </div>
-              <h2 className="mt-4 text-2xl font-bold text-white">
-                {visibility === "team" ? "Qui travaille sur cette échéance ?" : "Où en est cette échéance ?"}
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-100/80">
-                {visibility === "team"
-                  ? "Les membres peuvent indiquer qu’ils s’en occupent ou que l’action est faite. Les administrateurs valident ensuite pour déplacer l’échéance dans l’historique."
-                  : "Vous pouvez marquer cette échéance comme en cours, puis comme faite. Une échéance personnelle faite part directement dans l’historique."}
-              </p>
-            </div>
-            <span className={`inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold ${getDeadlineWorkflowBadgeClassName(workflowStatus)}`}>
-              {workflowLabel}
-            </span>
-          </div>
-
-          <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_1fr]">
-            <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">En cours par</p>
-              <p className="mt-2 font-semibold text-white">
-                {claimedByDisplayName ?? "Personne pour le moment"}
-              </p>
-              {typedDeadline.claimed_at ? (
-                <p className="mt-1 text-xs text-slate-300/70">{formatDateTime(typedDeadline.claimed_at)}</p>
-              ) : null}
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Faite par</p>
-              <p className="mt-2 font-semibold text-white">
-                {completedByDisplayName ?? "Pas encore indiquée comme faite"}
-              </p>
-              {typedDeadline.completed_at ? (
-                <p className="mt-1 text-xs text-slate-300/70">{formatDateTime(typedDeadline.completed_at)}</p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <TeamDeadlineWorkflowActions
-              deadlineId={typedDeadline.id}
-              status={workflowStatus}
-              visibility={visibility}
-              canContribute={canContributeTeam}
-              canManage={canManageTeam}
-              isOwner={isOwner}
-              claimedByCurrentUser={claimedByCurrentUser}
-              completedByCurrentUser={completedByCurrentUser}
-            />
-          </div>
-        </section>
-
-        <section className="mt-6 rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20 sm:p-7">
+          <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20 sm:p-7">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-2xl font-bold text-white">
@@ -853,6 +886,7 @@ Fiche échéance
           <div className="mt-6">
             <RenewalHistoryList renewals={renewalHistory} />
           </div>
+          </section>
         </section>
 
         {canEditCurrentDeadline ? (

@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { formatFileSize } from "@/lib/deadline-documents";
+import {
+  formatFileSize,
+  getDeadlineDocumentFormatLabel,
+  isDeadlineDocumentImage,
+  isDeadlineDocumentPdf,
+} from "@/lib/deadline-documents";
 import { getDeadlineDocumentById } from "@/lib/deadline-documents-server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -46,6 +51,9 @@ export default async function DeadlineDocumentViewerPage({
   const viewerUrl = `/api/deadline-documents/${document.id}`;
   const viewerEmbedUrl = `${viewerUrl}#toolbar=1&navpanes=0&scrollbar=1`;
   const downloadUrl = `/api/deadline-documents/${document.id}?download=1`;
+  const isPdf = isDeadlineDocumentPdf(document.mime_type, document.file_name);
+  const isImage = isDeadlineDocumentImage(document.mime_type, document.file_name);
+  const formatLabel = getDeadlineDocumentFormatLabel(document.mime_type, document.file_name);
 
   return (
     <main className="min-h-screen bg-slate-950 px-5 py-6 text-white sm:px-8 sm:py-8">
@@ -85,8 +93,7 @@ export default async function DeadlineDocumentViewerPage({
                 {document.file_name}
               </h1>
               <p className="mt-2 text-sm leading-6 text-slate-400">
-                Aperçu PDF intégré à DuePilot. Le fichier reste lié à votre
-                espace utilisateur et à son échéance.
+                Aperçu sécurisé intégré à DuePilot. Le fichier reste lié à votre espace utilisateur et à son échéance.
               </p>
             </div>
 
@@ -96,7 +103,7 @@ export default async function DeadlineDocumentViewerPage({
               </p>
               <div className="mt-3 space-y-2">
                 <p>
-                  Format : <span className="font-semibold text-slate-200">PDF</span>
+                  Format : <span className="font-semibold text-slate-200">{formatLabel}</span>
                 </p>
                 <p>
                   Taille :{" "}
@@ -110,32 +117,54 @@ export default async function DeadlineDocumentViewerPage({
 
           <div className="bg-slate-900/70 p-3 sm:p-4">
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl shadow-slate-950/40">
-              <object
-                data={viewerEmbedUrl}
-                type="application/pdf"
-                className="h-[72vh] w-full bg-white"
-                aria-label={`Aperçu PDF — ${document.file_name}`}
-              >
+              {isPdf ? (
+                <object
+                  data={viewerEmbedUrl}
+                  type="application/pdf"
+                  className="h-[72vh] w-full bg-white"
+                  aria-label={`Aperçu PDF — ${document.file_name}`}
+                >
+                  <div className="flex h-[72vh] w-full flex-col items-center justify-center bg-white px-6 text-center text-slate-700">
+                    <p className="text-base font-semibold">
+                      L’aperçu PDF ne peut pas être affiché dans ce navigateur.
+                    </p>
+                    <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
+                      Utilisez le bouton Télécharger pour ouvrir le document avec votre lecteur PDF.
+                    </p>
+                    <a
+                      href={downloadUrl}
+                      className="mt-5 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      Télécharger le PDF
+                    </a>
+                  </div>
+                </object>
+              ) : isImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={viewerUrl}
+                  alt={`Aperçu du document — ${document.file_name}`}
+                  className="max-h-[72vh] w-full object-contain bg-white"
+                />
+              ) : (
                 <div className="flex h-[72vh] w-full flex-col items-center justify-center bg-white px-6 text-center text-slate-700">
                   <p className="text-base font-semibold">
-                    L’aperçu PDF ne peut pas être affiché dans ce navigateur.
+                    Ce format ne dispose pas encore d’un aperçu intégré.
                   </p>
                   <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-                    Utilisez le bouton Télécharger pour ouvrir le document avec
-                    votre lecteur PDF.
+                    Utilisez le bouton Télécharger pour ouvrir le document.
                   </p>
                   <a
                     href={downloadUrl}
                     className="mt-5 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
                   >
-                    Télécharger le PDF
+                    Télécharger le document
                   </a>
                 </div>
-              </object>
+              )}
             </div>
             <p className="mt-3 text-center text-xs leading-5 text-slate-500">
-              Si l’aperçu ne s’affiche pas sur votre navigateur, utilisez le
-              bouton Télécharger en haut de la page.
+              Si l’aperçu ne s’affiche pas sur votre navigateur, utilisez le bouton Télécharger en haut de la page.
             </p>
           </div>
         </section>

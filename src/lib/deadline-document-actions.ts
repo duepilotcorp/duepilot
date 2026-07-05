@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildDeadlineDocumentStoragePath,
   DEADLINE_DOCUMENTS_BUCKET,
+  getDeadlineDocumentMimeType,
   validateDeadlineDocumentFile,
 } from "@/lib/deadline-documents";
 
@@ -39,10 +40,12 @@ export async function saveDeadlineDocument({
     fileName: file.name,
   });
 
+  const mimeType = getDeadlineDocumentMimeType(file) || "application/octet-stream";
+
   const { error: uploadError } = await supabase.storage
     .from(DEADLINE_DOCUMENTS_BUCKET)
     .upload(filePath, file, {
-      contentType: "application/pdf",
+      contentType: mimeType,
       upsert: false,
     });
 
@@ -50,7 +53,7 @@ export async function saveDeadlineDocument({
     console.error(uploadError);
     return {
       errorMessage:
-        "Impossible d’envoyer ce PDF pour le moment. Vérifiez le fichier puis réessayez.",
+        "Impossible d’envoyer ce document pour le moment. Vérifiez le fichier puis réessayez.",
     };
   }
 
@@ -63,19 +66,26 @@ export async function saveDeadlineDocument({
         file_name: file.name.trim() || "document.pdf",
         file_path: filePath,
         file_size: file.size,
-        mime_type: "application/pdf",
+        mime_type: mimeType,
       },
       { onConflict: "deadline_id" }
     );
 
   if (documentError) {
-    console.error(documentError);
+    console.error("Deadline document association failed", {
+      code: documentError.code,
+      message: documentError.message,
+      details: documentError.details,
+      hint: documentError.hint,
+    });
 
     await supabase.storage.from(DEADLINE_DOCUMENTS_BUCKET).remove([filePath]);
 
     return {
       errorMessage:
-        "Le PDF a été envoyé, mais DuePilot n’a pas pu l’associer à l’échéance. Réessayez dans quelques instants.",
+        documentError.code === "23514"
+          ? "Ce format de document n’est pas encore autorisé par la base DuePilot. Exécutez le correctif Supabase puis réessayez."
+          : "Le document a été envoyé, mais DuePilot n’a pas pu l’associer à l’échéance. Réessayez dans quelques instants.",
     };
   }
 

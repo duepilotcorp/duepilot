@@ -27,7 +27,7 @@ export default function DeadlineDocumentField({
   onShouldRemoveExistingDocumentChange,
   disabled = false,
   stepLabel = "Étape 2/3",
-  description = "Joignez l’attestation, le contrat, le certificat ou le rapport PDF lié à cette échéance.",
+  description = "Joignez l’attestation, le contrat, le certificat, le rapport ou l’image lié à cette échéance.",
   emptyDescription = "L’échéance peut être créée sans document. Vous pourrez en ajouter un plus tard depuis la page d’édition.",
 }: DeadlineDocumentFieldProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -106,7 +106,7 @@ export default function DeadlineDocumentField({
             ref={inputRef}
             id="deadlineDocument"
             type="file"
-            accept="application/pdf,.pdf"
+            accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"
             disabled={disabled}
             onChange={handleFileChange}
             className="sr-only"
@@ -116,11 +116,11 @@ export default function DeadlineDocumentField({
             ↑
           </span>
           <span className="mt-4 text-sm font-bold text-white">
-            Ajouter un PDF
+            Ajouter un document
           </span>
           <span className="mt-2 max-w-sm text-xs leading-5 text-slate-400">
-            PDF uniquement, 25 Mo maximum. Le fichier sera stocké dans l’espace
-            sécurisé de l’utilisateur connecté.
+            PDF, PNG, JPG, JPEG ou WEBP, 25 Mo maximum. Le fichier sera stocké
+            dans l’espace sécurisé de l’utilisateur connecté.
           </span>
         </label>
 
@@ -166,7 +166,7 @@ export default function DeadlineDocumentField({
                   href={`/deadlines/documents/${existingDocument.id}`}
                   className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-emerald-400/40 hover:bg-emerald-400/10 hover:text-white"
                 >
-                  Voir le PDF
+                  Voir le document
                 </a>
                 <button
                   type="button"

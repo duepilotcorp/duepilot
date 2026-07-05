@@ -55,7 +55,7 @@ const workflowSteps = [
     step: "01",
     title: "Centralisez vos obligations",
     description:
-      "Créez vos échéances, ajoutez les PDF associés et structurez vos priorités dans un espace unique.",
+      "Créez vos échéances, ajoutez les documents associés et structurez vos priorités dans un espace unique.",
   },
   {
     step: "02",
@@ -74,7 +74,7 @@ const workflowSteps = [
 const capabilities = [
   "Dashboard de suivi",
   "Rappels personnalisables",
-  "Documents PDF associés",
+  "Documents associés",
   "Modèles par secteur",
   "Journal d’activité",
   "Renouvellement d’échéance",
@@ -91,7 +91,7 @@ const trustItems = [
   {
     title: "Suivi documenté",
     description:
-      "Chaque échéance peut conserver son PDF, ses rappels et son journal d’activité.",
+      "Chaque échéance peut conserver son document, ses rappels et son journal d’activité.",
   },
   {
     title: "Base sécurisée",
@@ -271,7 +271,7 @@ export default async function Home({
                     <p className="mt-3 text-3xl font-semibold text-yellow-100">4</p>
                   </div>
                   <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
-                    <p className="text-xs text-emerald-100/80">Avec PDF</p>
+                    <p className="text-xs text-emerald-100/80">Avec document</p>
                     <p className="mt-3 text-3xl font-semibold text-emerald-100">21</p>
                   </div>
                 </div>

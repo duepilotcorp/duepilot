@@ -981,11 +981,11 @@ export default async function ComplianceCalendarPage({
                                 href={`/deadlines/documents/${deadline.document.id}`}
                                 className="rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white"
                               >
-                                PDF
+                                Doc
                               </Link>
                             ) : (
                               <span className="rounded-xl border border-orange-400/20 bg-orange-400/10 px-3 py-2 text-sm font-semibold text-orange-100">
-                                PDF manquant
+                                Document manquant
                               </span>
                             )}
                             <Link

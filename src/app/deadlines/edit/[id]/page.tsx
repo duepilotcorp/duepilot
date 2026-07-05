@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import EditDeadlineForm from "@/components/EditDeadlineForm";
 import { buildDeadlineAccessOrFilter, canEditDeadline, normalizeDeadlineVisibility } from "@/lib/deadline-access";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
+import type { DeadlineChecklistItem } from "@/lib/deadline-treatment";
 import { ensureUserOrganization } from "@/lib/organizations";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import { getDeadlineImportanceLabel } from "@/lib/deadline-importance";
@@ -25,6 +26,9 @@ type Deadline = {
   notification_days: number[] | null;
   recurrence_rule: string | null;
   importance_level: string | null;
+  treatment_note: string | null;
+  useful_link_url: string | null;
+  useful_link_label: string | null;
   created_at: string;
   user_id: string | null;
   organization_id: string | null;
@@ -82,7 +86,7 @@ export default async function EditDeadlinePage({
   const { data: deadline, error } = await supabase
     .from("deadlines")
     .select(
-      "id, title, category, due_date, notification_days, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status"
+      "id, title, category, due_date, notification_days, recurrence_rule, importance_level, treatment_note, useful_link_url, useful_link_label, created_at, user_id, organization_id, visibility, workflow_status"
     )
     .eq("id", id)
     .or(
@@ -144,6 +148,21 @@ export default async function EditDeadlinePage({
     userId: user.id,
     deadlineId: editableDeadline.id,
   });
+
+  const { data: checklistItemsData, error: checklistItemsError } = await supabase
+    .from("deadline_checklist_items")
+    .select("id, deadline_id, title, is_completed, position, created_by, completed_by, completed_at, created_at, updated_at")
+    .eq("deadline_id", editableDeadline.id)
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (checklistItemsError) {
+    console.error(checklistItemsError);
+  }
+
+  const checklistItems = checklistItemsError
+    ? []
+    : ((checklistItemsData ?? []) as DeadlineChecklistItem[]);
   const notificationCount = editableDeadline.notification_days?.length ?? 0;
   const returnHref = returnTo === "detail" ? `/deadlines/${editableDeadline.id}` : "/deadlines";
   const returnLabel = returnTo === "detail" ? "Retour à la fiche" : "Retour aux échéances";
@@ -211,6 +230,7 @@ export default async function EditDeadlinePage({
         <EditDeadlineForm
           deadline={editableDeadline}
           document={deadlineDocument}
+          checklistItems={checklistItems}
           returnHref={returnHref}
         />
       </div>

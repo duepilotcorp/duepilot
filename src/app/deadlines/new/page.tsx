@@ -3,16 +3,26 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import CollapsibleFormSection from "@/components/CollapsibleFormSection";
 import DateField from "@/components/DateField";
 import DeadlineDocumentField from "@/components/DeadlineDocumentField";
 import DeadlineTemplatePicker from "@/components/DeadlineTemplatePicker";
 import DeadlineImportanceSelector from "@/components/DeadlineImportanceSelector";
+import DeadlineTreatmentOptions from "@/components/DeadlineTreatmentOptions";
 import RecurrenceSelector from "@/components/RecurrenceSelector";
 import NotificationDaysSelector, {
   DEFAULT_NOTIFICATION_DAYS,
   normalizeNotificationDays,
 } from "@/components/NotificationDaysSelector";
 import { createActivityLogs } from "@/lib/activity-logs";
+import {
+  isValidUsefulLinkUrl,
+  normalizeChecklistItems,
+  normalizeTreatmentNote,
+  normalizeUsefulLinkLabel,
+  normalizeUsefulLinkUrl,
+  type EditableChecklistItem,
+} from "@/lib/deadline-treatment";
 import { canManageTeamDeadlines, type DeadlineVisibility } from "@/lib/deadline-access";
 import { saveDeadlineDocument } from "@/lib/deadline-document-actions";
 import type { DeadlineTemplate } from "@/lib/deadline-templates";
@@ -158,6 +168,16 @@ export default function NewDeadlinePage() {
   const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(
     null
   );
+  const [enableDocument, setEnableDocument] = useState(false);
+  const [enableChecklist, setEnableChecklist] = useState(false);
+  const [enableNote, setEnableNote] = useState(false);
+  const [enableUsefulLink, setEnableUsefulLink] = useState(false);
+  const [checklistItems, setChecklistItems] = useState<EditableChecklistItem[]>([
+    { title: "" },
+  ]);
+  const [treatmentNote, setTreatmentNote] = useState("");
+  const [usefulLinkLabel, setUsefulLinkLabel] = useState("");
+  const [usefulLinkUrl, setUsefulLinkUrl] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
     null
   );
@@ -234,6 +254,29 @@ export default function NewDeadlinePage() {
       return;
     }
 
+    const normalizedTreatmentNote = enableNote
+      ? normalizeTreatmentNote(treatmentNote)
+      : "";
+    const normalizedUsefulLinkUrl = enableUsefulLink
+      ? normalizeUsefulLinkUrl(usefulLinkUrl)
+      : "";
+    const normalizedUsefulLinkLabel = enableUsefulLink
+      ? normalizeUsefulLinkLabel(usefulLinkLabel)
+      : "";
+    const normalizedChecklistItems = enableChecklist
+      ? normalizeChecklistItems(checklistItems)
+      : [];
+
+    if (enableUsefulLink && !normalizedUsefulLinkUrl) {
+      setErrorMessage("Ajoutez une URL pour le lien utile ou désactivez cette option.");
+      return;
+    }
+
+    if (normalizedUsefulLinkUrl && !isValidUsefulLinkUrl(normalizedUsefulLinkUrl)) {
+      setErrorMessage("Le lien utile doit commencer par http:// ou https://.");
+      return;
+    }
+
     setIsLoading(true);
 
     const {
@@ -277,6 +320,9 @@ export default function NewDeadlinePage() {
         notification_days: selectedNotificationDays,
         recurrence_rule: recurrenceRule,
         importance_level: importanceLevel,
+        treatment_note: normalizedTreatmentNote || null,
+        useful_link_url: normalizedUsefulLinkUrl || null,
+        useful_link_label: normalizedUsefulLinkLabel || null,
       })
       .select("id")
       .single();
@@ -290,7 +336,33 @@ export default function NewDeadlinePage() {
       return;
     }
 
-    if (selectedDocumentFile) {
+    if (normalizedChecklistItems.length > 0) {
+      const { error: checklistError } = await supabase
+        .from("deadline_checklist_items")
+        .insert(
+          normalizedChecklistItems.map((item, index) => ({
+            deadline_id: Number(createdDeadline.id),
+            title: item.title,
+            position: index,
+            created_by: user.id,
+          }))
+        );
+
+      if (checklistError) {
+        console.error(checklistError);
+        await supabase
+          .from("deadlines")
+          .delete()
+          .eq("id", createdDeadline.id)
+          .eq("user_id", user.id);
+
+        setErrorMessage("Impossible d’ajouter la checklist de traitement pour le moment.");
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    if (enableDocument && selectedDocumentFile) {
       const documentResult = await saveDeadlineDocument({
         supabase,
         userId: user.id,
@@ -326,11 +398,14 @@ export default function NewDeadlinePage() {
           notification_days: selectedNotificationDays,
           recurrence_rule: recurrenceRule,
           importance_level: importanceLevel,
+          treatment_note: Boolean(normalizedTreatmentNote),
+          useful_link_url: Boolean(normalizedUsefulLinkUrl),
+          checklist_items_count: normalizedChecklistItems.length,
           template: appliedTemplateName || null,
           visibility: safeVisibility,
         },
       },
-      ...(selectedDocumentFile
+      ...(enableDocument && selectedDocumentFile
         ? [
             {
               supabase,
@@ -401,9 +476,18 @@ export default function NewDeadlinePage() {
                 </p>
                 <p>{visibility === "team" ? "Portée : équipe" : "Portée : personnelle"}</p>
                 <p>
-                  {selectedDocumentFile
-                    ? selectedDocumentFile.name
-                    : "Aucun document attaché"}
+                  {enableDocument
+                    ? selectedDocumentFile
+                      ? selectedDocumentFile.name
+                      : "Document activé sans fichier"
+                    : "Document non activé"}
+                </p>
+                <p>
+                  Options : {[
+                    enableChecklist ? "checklist" : null,
+                    enableNote ? "note" : null,
+                    enableUsefulLink ? "lien" : null,
+                  ].filter(Boolean).join(" · ") || "aucune"}
                 </p>
               </div>
             </div>
@@ -412,52 +496,6 @@ export default function NewDeadlinePage() {
 
         <form onSubmit={handleSubmit} className="mt-8 grid gap-6 lg:grid-cols-[1fr_22rem]">
           <div className="space-y-6">
-            <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-2xl shadow-slate-950/20 sm:p-6">
-              <div className="flex flex-col gap-2 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-white">Portée de l’échéance</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-400">Choisissez si cette échéance reste personnelle ou si elle concerne toute l’équipe.</p>
-                </div>
-                <span className="inline-flex w-fit rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300">Base équipe</span>
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setVisibility("personal")}
-                  disabled={isLoading}
-                  className={`rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                    visibility === "personal"
-                      ? "border-violet-400/40 bg-violet-400/10 text-violet-100"
-                      : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.06]"
-                  }`}
-                >
-                  <span className="block text-sm font-bold text-white">Personnelle</span>
-                  <span className="mt-2 block text-sm leading-6 text-slate-400">Visible uniquement par vous. Les autres membres ne la verront pas.</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setVisibility("team")}
-                  disabled={isLoading || !canCreateTeamDeadline}
-                  className={`rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                    visibility === "team"
-                      ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100"
-                      : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.06]"
-                  }`}
-                >
-                  <span className="block text-sm font-bold text-white">Équipe</span>
-                  <span className="mt-2 block text-sm leading-6 text-slate-400">Visible par l’entreprise. Réservé aux propriétaires et administrateurs.</span>
-                </button>
-              </div>
-            </section>
-
-            <DeadlineTemplatePicker
-              selectedTemplateId={selectedTemplateId}
-              onSelectTemplate={handleTemplateSelect}
-              disabled={isLoading}
-            />
-
             <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-2xl shadow-slate-950/20 sm:p-6">
               <div className="flex flex-col gap-2 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -553,36 +591,129 @@ export default function NewDeadlinePage() {
                   hint="Utilisez le calendrier ou les raccourcis pour renseigner rapidement une date fiable."
                 />
               </div>
+
+              <div className="mt-6 grid gap-5 border-t border-white/10 pt-6">
+                <DeadlineImportanceSelector
+                  value={importanceLevel}
+                  onChange={setImportanceLevel}
+                  disabled={isLoading}
+                  stepLabel="Criticité"
+                />
+
+                <div className="rounded-3xl border border-white/10 bg-slate-950/35 p-5">
+                  <div className="flex flex-col gap-2 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-white">Portée de l’échéance</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-400">Choisissez si cette échéance reste personnelle ou si elle concerne toute l’équipe.</p>
+                    </div>
+                    <span className="inline-flex w-fit rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300">Base équipe</span>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setVisibility("personal")}
+                      disabled={isLoading}
+                      className={`rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                        visibility === "personal"
+                          ? "border-violet-400/40 bg-violet-400/10 text-violet-100"
+                          : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.06]"
+                      }`}
+                    >
+                      <span className="block text-sm font-bold text-white">Personnelle</span>
+                      <span className="mt-2 block text-sm leading-6 text-slate-400">Visible uniquement par vous. Les autres membres ne la verront pas.</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setVisibility("team")}
+                      disabled={isLoading || !canCreateTeamDeadline}
+                      className={`rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                        visibility === "team"
+                          ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100"
+                          : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.06]"
+                      }`}
+                    >
+                      <span className="block text-sm font-bold text-white">Équipe</span>
+                      <span className="mt-2 block text-sm leading-6 text-slate-400">Visible par l’entreprise. Réservé aux propriétaires et administrateurs.</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </section>
 
-            <DeadlineImportanceSelector
-              value={importanceLevel}
-              onChange={setImportanceLevel}
-              disabled={isLoading}
-              stepLabel="Criticité"
-            />
+            <CollapsibleFormSection
+              title="Options complémentaires"
+              description="Ajoutez uniquement les blocs utiles : document, checklist, note ou lien."
+              badge="Personnalisation"
+            >
+              <DeadlineTreatmentOptions
+                enableDocument={enableDocument}
+                onEnableDocumentChange={(value) => {
+                  setEnableDocument(value);
+                  if (!value) setSelectedDocumentFile(null);
+                }}
+                enableChecklist={enableChecklist}
+                onEnableChecklistChange={setEnableChecklist}
+                enableNote={enableNote}
+                onEnableNoteChange={setEnableNote}
+                enableUsefulLink={enableUsefulLink}
+                onEnableUsefulLinkChange={setEnableUsefulLink}
+                checklistItems={checklistItems}
+                onChecklistItemsChange={setChecklistItems}
+                treatmentNote={treatmentNote}
+                onTreatmentNoteChange={setTreatmentNote}
+                usefulLinkLabel={usefulLinkLabel}
+                onUsefulLinkLabelChange={setUsefulLinkLabel}
+                usefulLinkUrl={usefulLinkUrl}
+                onUsefulLinkUrlChange={setUsefulLinkUrl}
+                disabled={isLoading}
+              />
+            </CollapsibleFormSection>
 
-            <RecurrenceSelector
-              value={recurrenceRule}
-              onChange={setRecurrenceRule}
-              disabled={isLoading}
-              dueDate={dueDate}
-              stepLabel="Étape 2/4"
-            />
+            {enableDocument ? (
+              <DeadlineDocumentField
+                selectedFile={selectedDocumentFile}
+                onSelectedFileChange={setSelectedDocumentFile}
+                disabled={isLoading}
+                stepLabel="Document"
+              />
+            ) : null}
 
-            <DeadlineDocumentField
-              selectedFile={selectedDocumentFile}
-              onSelectedFileChange={setSelectedDocumentFile}
-              disabled={isLoading}
-              stepLabel="Étape 3/4"
-            />
+            <CollapsibleFormSection
+              title="Rappels et récurrence"
+              description="Configurez les rappels automatiques et la prochaine date proposée au renouvellement."
+              badge={`${normalizedNotificationDays.length} rappel${normalizedNotificationDays.length > 1 ? "s" : ""}`}
+            >
+              <div className="space-y-5">
+                <RecurrenceSelector
+                  value={recurrenceRule}
+                  onChange={setRecurrenceRule}
+                  disabled={isLoading}
+                  dueDate={dueDate}
+                  stepLabel="Récurrence"
+                />
 
-            <NotificationDaysSelector
-              selectedDays={notificationDays}
-              onChange={setNotificationDays}
-              disabled={isLoading}
-              stepLabel="Étape 4/4"
-            />
+                <NotificationDaysSelector
+                  selectedDays={notificationDays}
+                  onChange={setNotificationDays}
+                  disabled={isLoading}
+                  stepLabel="Rappels"
+                />
+              </div>
+            </CollapsibleFormSection>
+
+            <CollapsibleFormSection
+              title="Modèles d’échéances"
+              description="Utilisez un modèle métier si vous souhaitez préremplir rapidement une échéance."
+              badge="Optionnel"
+            >
+              <DeadlineTemplatePicker
+                selectedTemplateId={selectedTemplateId}
+                onSelectTemplate={handleTemplateSelect}
+                disabled={isLoading}
+              />
+            </CollapsibleFormSection>
 
             {errorMessage && (
               <div
