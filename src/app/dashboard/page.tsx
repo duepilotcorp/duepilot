@@ -21,6 +21,7 @@ import {
 import { isUserAdmin } from "@/lib/user-roles";
 import { getUserDisplayName } from "@/lib/user-display";
 import { createClient } from "@/lib/supabase/server";
+import { calculateAdministrativeRisk, getRiskDriverClassName } from "@/lib/administrative-risk";
 
 export const dynamic = "force-dynamic";
 
@@ -36,15 +37,6 @@ type Deadline = {
   organization_id: string | null;
   visibility: string | null;
   workflow_status: string | null;
-};
-
-type RiskSummary = {
-  label: string;
-  title: string;
-  description: string;
-  score: number;
-  badgeClassName: string;
-  panelClassName: string;
 };
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
@@ -111,76 +103,6 @@ function getStatusClassName(daysUntilDeadline: number) {
   }
 
   return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200";
-}
-
-function getRiskSummary({
-  total,
-  lateCount,
-  next7Count,
-  next30Count,
-}: {
-  total: number;
-  lateCount: number;
-  next7Count: number;
-  next30Count: number;
-}): RiskSummary {
-  if (total === 0) {
-    return {
-      label: "Initialisation",
-      title: "Votre cockpit administratif est prêt à être configuré.",
-      description:
-        "Ajoutez vos premières échéances pour commencer à anticiper les obligations importantes de votre entreprise.",
-      score: 0,
-      badgeClassName: "border-blue-400/30 bg-blue-400/10 text-blue-100",
-      panelClassName: "border-blue-400/20 bg-blue-400/10",
-    };
-  }
-
-  if (lateCount > 0) {
-    return {
-      label: "Risque élevé",
-      title: "Des échéances nécessitent une action immédiate.",
-      description:
-        "Traitez les éléments en retard en priorité pour limiter les risques de non-conformité, de pénalité ou d’interruption d’activité.",
-      score: Math.max(8, 100 - lateCount * 28 - next7Count * 12 - next30Count * 4),
-      badgeClassName: "border-red-400/30 bg-red-400/10 text-red-100",
-      panelClassName: "border-red-400/20 bg-red-400/10",
-    };
-  }
-
-  if (next7Count > 0) {
-    return {
-      label: "À surveiller",
-      title: "Certaines échéances arrivent très bientôt.",
-      description:
-        "Votre situation est saine, mais les prochains jours demandent de l’attention pour éviter tout retard.",
-      score: Math.max(35, 100 - next7Count * 14 - next30Count * 4),
-      badgeClassName: "border-orange-400/30 bg-orange-400/10 text-orange-100",
-      panelClassName: "border-orange-400/20 bg-orange-400/10",
-    };
-  }
-
-  if (next30Count > 0) {
-    return {
-      label: "Planifié",
-      title: "Votre mois à venir est identifié.",
-      description:
-        "Les prochaines obligations sont visibles suffisamment tôt pour être préparées sans urgence.",
-      score: Math.max(68, 100 - next30Count * 5),
-      badgeClassName: "border-yellow-400/30 bg-yellow-400/10 text-yellow-100",
-      panelClassName: "border-yellow-400/20 bg-yellow-400/10",
-    };
-  }
-
-  return {
-    label: "Sous contrôle",
-    title: "Aucune échéance critique à court terme.",
-    description:
-      "Votre suivi est à jour. Continuez à centraliser vos obligations pour garder une visibilité complète.",
-    score: 100,
-    badgeClassName: "border-emerald-400/30 bg-emerald-400/10 text-emerald-100",
-    panelClassName: "border-emerald-400/20 bg-emerald-400/10",
-  };
 }
 
 export default async function DashboardPage() {
@@ -290,15 +212,17 @@ export default async function DashboardPage() {
     .filter((deadline) => deadline.daysUntilDeadline <= 30)
     .slice(0, 5);
   const nextCriticalDeadline = activeDeadlines[0];
-  const riskSummary = getRiskSummary({
-    total,
-    lateCount,
-    next7Count,
-    next30Count,
-  });
+  const riskReport = calculateAdministrativeRisk(
+    activeDeadlines.map((deadline) => ({
+      daysUntilDeadline: deadline.daysUntilDeadline,
+      hasDocument: Boolean(deadline.document),
+      importanceLevel: deadline.importance_level,
+      workflowStatus: deadline.workflow_status,
+    }))
+  );
 
   const categoryBreakdown = Object.entries(
-    enrichedDeadlines.reduce<Record<string, number>>((accumulator, deadline) => {
+    activeDeadlines.reduce<Record<string, number>>((accumulator, deadline) => {
       const category = deadline.category || "Sans catégorie";
       accumulator[category] = (accumulator[category] ?? 0) + 1;
       return accumulator;
@@ -403,38 +327,55 @@ Vue d’ensemble
                 </div>
               </div>
 
-              <div className={`rounded-3xl border p-5 ${riskSummary.panelClassName}`}>
+              <div className={`rounded-3xl border p-5 ${riskReport.panelClassName}`}>
                 <div className="flex items-center justify-between gap-4">
                   <span
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold ${riskSummary.badgeClassName}`}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold ${riskReport.badgeClassName}`}
                   >
-                    {riskSummary.label}
+                    {riskReport.levelLabel}
                   </span>
                   <span className="text-sm font-medium text-slate-300">
-Santé administrative
+                    Score DuePilot
                   </span>
                 </div>
 
-                <div className="mt-5 flex items-end gap-2" aria-label={`Santé administrative ${riskSummary.score} sur 100`}>
+                <div className="mt-5 flex items-end gap-2" aria-label={`Score DuePilot ${riskReport.score} sur 100`}>
                   <p className="text-5xl font-bold tracking-tight text-white">
-                    {riskSummary.score}
+                    {riskReport.score}
                   </p>
                   <p className="pb-2 text-sm font-semibold text-slate-300">/100</p>
                 </div>
 
                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
                   <div
-                    className="h-full rounded-full bg-white"
-                    style={{ width: `${riskSummary.score}%` }}
+                    className={`h-full rounded-full ${riskReport.progressClassName}`}
+                    style={{ width: `${riskReport.score}%` }}
                   />
                 </div>
 
                 <h2 className="mt-5 text-lg font-semibold text-white">
-                  {riskSummary.title}
+                  {riskReport.title}
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
-                  Ce score tient compte des retards, urgences à 7 jours et échéances à anticiper.
+                  {riskReport.description}
                 </p>
+
+                <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                  {riskReport.metrics.map((metric) => (
+                    <div
+                      key={metric.label}
+                      className={`rounded-2xl border px-3 py-3 ${metric.className}`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-semibold uppercase tracking-[0.14em]">
+                          {metric.label}
+                        </span>
+                        <span className="text-lg font-bold">{metric.value}</span>
+                      </div>
+                      <p className="mt-1 text-xs opacity-75">{metric.helper}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -453,6 +394,70 @@ Santé administrative
               <p className="mt-3 text-sm text-slate-400">{card.helper}</p>
             </div>
           ))}
+        </section>
+
+        <section className="mt-6 grid gap-6 lg:grid-cols-[0.95fr_1.05fr] animate-rise-in-delay-1">
+          <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-200">
+                  Signaux de risque
+                </p>
+                <h2 className="mt-2 text-2xl font-bold text-white">
+                  Ce qui influence le score
+                </h2>
+              </div>
+              <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${riskReport.badgeClassName}`}>
+                {riskReport.levelLabel}
+              </span>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {riskReport.drivers.map((driver) => (
+                <div
+                  key={`${driver.label}-${driver.description}`}
+                  className={`rounded-2xl border p-4 ${getRiskDriverClassName(driver.severity)}`}
+                >
+                  <p className="font-semibold">{driver.label}</p>
+                  <p className="mt-1 text-sm opacity-75">{driver.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-200">
+              Plan d’action
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-white">
+              Recommandations prioritaires
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              DuePilot transforme le score en actions concrètes pour réduire le risque administratif.
+            </p>
+
+            <div className="mt-5 space-y-3">
+              {riskReport.recommendations.map((recommendation, index) => (
+                <Link
+                  key={`${recommendation.title}-${recommendation.href}`}
+                  href={recommendation.href}
+                  className="group flex gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:-translate-y-0.5 hover:border-emerald-300/40 hover:bg-emerald-400/10"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 text-sm font-bold text-emerald-100">
+                    {index + 1}
+                  </span>
+                  <span>
+                    <span className="block font-semibold text-white transition group-hover:text-emerald-100">
+                      {recommendation.title}
+                    </span>
+                    <span className="mt-1 block text-sm leading-6 text-slate-400">
+                      {recommendation.description}
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
         </section>
 
         {total === 0 ? (
