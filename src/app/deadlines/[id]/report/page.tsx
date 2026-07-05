@@ -12,6 +12,7 @@ import {
 import { formatFileSize } from "@/lib/deadline-documents";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
 import { getDeadlineRenewalHistory } from "@/lib/renewal-history";
+import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import { ensureUserOrganization } from "@/lib/organizations";
 import { createClient } from "@/lib/supabase/server";
 
@@ -29,6 +30,7 @@ type Deadline = {
   category: string | null;
   due_date: string;
   notification_days: number[] | null;
+  recurrence_rule: string | null;
   created_at: string;
   user_id: string | null;
   organization_id: string | null;
@@ -134,6 +136,7 @@ function getActivityLabel(action: string) {
   if (action === "deadline.category_updated") return "Catégorie modifiée";
   if (action === "deadline.due_date_updated") return "Date modifiée";
   if (action === "deadline.reminders_updated") return "Rappels modifiés";
+  if (action === "deadline.recurrence_updated") return "Récurrence modifiée";
   if (action === "deadline.renewed") return "Échéance renouvelée";
   if (action === "deadline.claimed") return "Échéance prise en charge";
   if (action === "deadline.completed") return "Échéance faite, à valider";
@@ -175,7 +178,7 @@ export default async function DeadlineReportPage({
 
   const { data: deadline, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, notification_days, created_at, user_id, organization_id, visibility, workflow_status")
+    .select("id, title, category, due_date, notification_days, recurrence_rule, created_at, user_id, organization_id, visibility, workflow_status")
     .eq("id", deadlineId)
     .or(
       buildDeadlineAccessOrFilter({
@@ -243,6 +246,7 @@ export default async function DeadlineReportPage({
     minute: "2-digit",
   }).format(new Date());
   const categoryLabel = typedDeadline.category?.trim() || "Sans catégorie";
+  const recurrenceLabel = getRecurrenceShortLabel(typedDeadline.recurrence_rule);
   const logs = notificationLogsError ? [] : notificationLogs ?? [];
 
   return (
@@ -334,6 +338,14 @@ export default async function DeadlineReportPage({
               </p>
               <p className="mt-2 font-semibold text-slate-950">
                 {visibility === "team" ? workflowLabel : "Non partagé"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Récurrence
+              </p>
+              <p className="mt-2 font-semibold text-slate-950">
+                {recurrenceLabel}
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

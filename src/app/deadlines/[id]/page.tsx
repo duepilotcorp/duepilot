@@ -22,6 +22,7 @@ import {
 import { formatFileSize } from "@/lib/deadline-documents";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
 import { getDeadlineRenewalHistory } from "@/lib/renewal-history";
+import { getNextRecurringDate, getRecurrenceShortLabel, normalizeRecurrenceRule } from "@/lib/recurrence";
 import { ensureUserOrganization } from "@/lib/organizations";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -40,6 +41,7 @@ type Deadline = {
   category: string | null;
   due_date: string;
   notification_days: number[] | null;
+  recurrence_rule: string | null;
   created_at: string;
   user_id: string | null;
   organization_id: string | null;
@@ -253,7 +255,7 @@ export default async function DeadlineDetailPage({
 
   const { data: deadline, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, notification_days, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, claimed_at, completed_by, completed_at, archived_by, archived_at")
+    .select("id, title, category, due_date, notification_days, recurrence_rule, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, claimed_at, completed_by, completed_at, archived_by, archived_at")
     .eq("id", deadlineId)
     .or(
       buildDeadlineAccessOrFilter({
@@ -364,6 +366,9 @@ export default async function DeadlineDetailPage({
   const formattedDueDate = formatDeadlineDate(typedDeadline.due_date);
   const formattedCreatedAt = formatDateTime(typedDeadline.created_at);
   const categoryLabel = typedDeadline.category?.trim() || "Sans catégorie";
+  const recurrenceRule = normalizeRecurrenceRule(typedDeadline.recurrence_rule);
+  const recurrenceLabel = getRecurrenceShortLabel(recurrenceRule);
+  const nextRecurringDate = getNextRecurringDate(typedDeadline.due_date, recurrenceRule);
   const reminderCount = normalizedNotificationDays.length;
 
   const keyMetrics = [
@@ -579,6 +584,19 @@ Fiche échéance
                   </p>
                   <p className="mt-2 font-semibold text-slate-100">
                     {visibility === "team" ? workflowLabel : "Non partagé"}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:col-span-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Récurrence
+                  </p>
+                  <p className="mt-2 font-semibold text-slate-100">
+                    {recurrenceLabel}
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    {nextRecurringDate
+                      ? `Prochaine date suggérée au renouvellement : ${formatDeadlineDate(nextRecurringDate)}`
+                      : "Aucune date automatique ne sera proposée au renouvellement."}
                   </p>
                 </div>
               </div>
@@ -832,6 +850,7 @@ Fiche échéance
             category: typedDeadline.category,
             due_date: typedDeadline.due_date,
             notification_days: typedDeadline.notification_days,
+            recurrence_rule: typedDeadline.recurrence_rule,
           }}
             document={document}
           />

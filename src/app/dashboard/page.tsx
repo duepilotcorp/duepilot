@@ -13,6 +13,7 @@ import {
 } from "@/lib/deadline-access";
 import { getDeadlineDocumentsByDeadlineId } from "@/lib/deadline-documents-server";
 import { ensureUserOrganization } from "@/lib/organizations";
+import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import { isUserAdmin } from "@/lib/user-roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -23,6 +24,7 @@ type Deadline = {
   title: string;
   category: string;
   due_date: string;
+  recurrence_rule: string | null;
   created_at: string;
   user_id: string | null;
   organization_id: string | null;
@@ -194,7 +196,7 @@ export default async function DashboardPage() {
 
   const { data: deadlines, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, created_at, user_id, organization_id, visibility, workflow_status")
+    .select("id, title, category, due_date, recurrence_rule, created_at, user_id, organization_id, visibility, workflow_status")
     .or(
       buildDeadlineAccessOrFilter({
         userId: user.id,
@@ -240,6 +242,7 @@ export default async function DashboardPage() {
       workflowLabel: getDeadlineWorkflowLabel({ status: normalizeDeadlineWorkflowStatus(deadline.workflow_status), visibility: normalizeDeadlineVisibility(deadline.visibility) }),
       visibilityClassName: getDeadlineVisibilityBadgeClassName(normalizeDeadlineVisibility(deadline.visibility)),
       workflowClassName: getDeadlineWorkflowBadgeClassName(normalizeDeadlineWorkflowStatus(deadline.workflow_status)),
+      recurrenceLabel: getRecurrenceShortLabel(deadline.recurrence_rule),
       document: documentsByDeadlineId.get(deadline.id) ?? null,
     };
   });
@@ -271,6 +274,7 @@ export default async function DashboardPage() {
   const personalCount = activeDeadlines.filter((deadline) => deadline.visibility === "personal").length;
   const inProgressCount = activeDeadlines.filter((deadline) => deadline.workflowStatus === "in_progress").length;
   const pendingValidationCount = activeDeadlines.filter((deadline) => deadline.workflowStatus === "completed").length;
+  const recurringCount = activeDeadlines.filter((deadline) => deadline.recurrence_rule && deadline.recurrence_rule !== "none").length;
   const isAdminUser = await isUserAdmin(user.id);
 
   const urgentDeadlines = activeDeadlines
@@ -324,7 +328,7 @@ export default async function DashboardPage() {
     {
       label: "Total suivies",
       value: total,
-      helper: `${teamCount} équipe · ${personalCount} perso · ${archivedCount} historiques`,
+      helper: `${teamCount} équipe · ${personalCount} perso · ${recurringCount} récurrentes`,
       className: "border-emerald-500/20 bg-emerald-500/10",
       valueClassName: "text-emerald-100",
     },

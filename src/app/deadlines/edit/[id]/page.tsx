@@ -4,6 +4,7 @@ import EditDeadlineForm from "@/components/EditDeadlineForm";
 import { buildDeadlineAccessOrFilter, canEditDeadline, normalizeDeadlineVisibility } from "@/lib/deadline-access";
 import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
 import { ensureUserOrganization } from "@/lib/organizations";
+import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ type Deadline = {
   category: string;
   due_date: string;
   notification_days: number[] | null;
+  recurrence_rule: string | null;
   created_at: string;
   user_id: string | null;
   organization_id: string | null;
@@ -78,7 +80,7 @@ export default async function EditDeadlinePage({
   const { data: deadline, error } = await supabase
     .from("deadlines")
     .select(
-      "id, title, category, due_date, notification_days, created_at, user_id, organization_id, visibility, workflow_status"
+      "id, title, category, due_date, notification_days, recurrence_rule, created_at, user_id, organization_id, visibility, workflow_status"
     )
     .eq("id", id)
     .or(
@@ -192,6 +194,7 @@ export default async function EditDeadlinePage({
                       } configuré${notificationCount === 1 ? "" : "s"}`
                     : "Rappels par défaut"}
                 </p>
+                <p>Récurrence : {getRecurrenceShortLabel(editableDeadline.recurrence_rule)}</p>
                 <p>
                   {deadlineDocument
                     ? `Document : ${deadlineDocument.file_name}`

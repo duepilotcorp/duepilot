@@ -17,6 +17,7 @@ import {
   type DeadlineWorkflowStatus,
 } from "@/lib/deadline-access";
 import { ensureUserOrganization } from "@/lib/organizations";
+import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ type Deadline = {
   title: string;
   category: string | null;
   due_date: string;
+  recurrence_rule: string | null;
   created_at: string;
   user_id: string | null;
   organization_id: string | null;
@@ -51,6 +53,7 @@ type EnrichedDeadline = Deadline & {
   workflowLabel: string;
   visibilityClassName: string;
   workflowClassName: string;
+  recurrenceLabel: string;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -414,7 +417,7 @@ export default async function DeadlinesPage({
 
   const { data: deadlines, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, completed_by")
+    .select("id, title, category, due_date, recurrence_rule, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, completed_by")
     .or(
       buildDeadlineAccessOrFilter({
         userId: user.id,
@@ -459,6 +462,7 @@ export default async function DeadlinesPage({
       workflowLabel: getDeadlineWorkflowLabel({ status: workflowStatus, visibility }),
       visibilityClassName: getDeadlineVisibilityBadgeClassName(visibility),
       workflowClassName: getDeadlineWorkflowBadgeClassName(workflowStatus),
+      recurrenceLabel: getRecurrenceShortLabel(deadline.recurrence_rule),
       categoryLabel,
       daysUntilDeadline,
       formattedDate: formatDeadlineDate(deadline.due_date),
@@ -514,6 +518,7 @@ export default async function DeadlinesPage({
         deadline.formattedDate,
         deadline.readableStatus,
         deadline.priorityLabel,
+        deadline.recurrenceLabel,
         deadline.document?.file_name ?? "",
       ]
         .join(" ")
@@ -695,6 +700,9 @@ export default async function DeadlinesPage({
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
                     {teamCount} équipe · {personalCount} perso
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
+                    {activeDeadlines.filter((deadline) => deadline.recurrence_rule && deadline.recurrence_rule !== "none").length} récurrente{activeDeadlines.filter((deadline) => deadline.recurrence_rule && deadline.recurrence_rule !== "none").length > 1 ? "s" : ""}
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
                     {inProgressCount} en cours · {completedCount} à valider
@@ -1036,6 +1044,9 @@ export default async function DeadlinesPage({
                               <p className="mt-1 text-sm text-slate-500">
                                 {deadline.compactStatus}
                               </p>
+                              <p className="mt-1 text-xs text-slate-600">
+                                {deadline.recurrenceLabel}
+                              </p>
                             </td>
 
                             <td className="px-6 py-5">
@@ -1123,6 +1134,12 @@ export default async function DeadlinesPage({
                             <p className="text-slate-500">Statut</p>
                             <p className="mt-1 font-medium text-slate-100">
                               {deadline.readableStatus}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Récurrence</p>
+                            <p className="mt-1 font-medium text-slate-100">
+                              {deadline.recurrenceLabel}
                             </p>
                           </div>
                           <div className="sm:col-span-2">

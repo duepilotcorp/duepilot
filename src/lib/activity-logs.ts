@@ -11,6 +11,7 @@ export type ActivityLogAction =
   | "deadline.category_updated"
   | "deadline.due_date_updated"
   | "deadline.reminders_updated"
+  | "deadline.recurrence_updated"
   | "deadline.renewed"
   | "deadline.claimed"
   | "deadline.unclaimed"

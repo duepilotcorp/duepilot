@@ -9,6 +9,7 @@ import {
 import { getDeadlineDocumentsByDeadlineId } from "@/lib/deadline-documents-server";
 import { formatFileSize } from "@/lib/deadline-documents";
 import { ensureUserOrganization } from "@/lib/organizations";
+import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ type Deadline = {
   category: string | null;
   due_date: string;
   notification_days: number[] | null;
+  recurrence_rule: string | null;
   created_at: string;
   user_id: string | null;
   organization_id: string | null;
@@ -33,6 +35,7 @@ type EnrichedDeadline = Deadline & {
   readableStatus: string;
   priorityLabel: string;
   remindersLabel: string;
+  recurrenceLabel: string;
   documentFileName: string;
   documentFileSize: string;
   visibilityLabel: string;
@@ -224,6 +227,7 @@ function buildCsv(deadlines: EnrichedDeadline[]) {
     "Suivi équipe",
     "Priorité",
     "Rappels",
+    "Récurrence",
     "Document associé",
     "Nom du document",
     "Taille du document",
@@ -239,6 +243,7 @@ function buildCsv(deadlines: EnrichedDeadline[]) {
     deadline.workflowLabel,
     deadline.priorityLabel,
     deadline.remindersLabel,
+    deadline.recurrenceLabel,
     deadline.documentFileName ? "Oui" : "Non",
     deadline.documentFileName,
     deadline.documentFileSize,
@@ -286,7 +291,7 @@ export async function GET(request: NextRequest) {
 
   const { data: deadlines, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, notification_days, created_at, user_id, organization_id, visibility, workflow_status")
+    .select("id, title, category, due_date, notification_days, recurrence_rule, created_at, user_id, organization_id, visibility, workflow_status")
     .or(
       buildDeadlineAccessOrFilter({
         userId: user.id,
@@ -333,6 +338,7 @@ export async function GET(request: NextRequest) {
       priorityLabel: getPriorityLabel(daysUntilDeadline),
       remindersLabel:
         reminders.length > 0 ? reminders.map(formatReminder).join(", ") : "Aucun rappel",
+      recurrenceLabel: getRecurrenceShortLabel(deadline.recurrence_rule),
       documentFileName: document?.file_name ?? "",
       documentFileSize: document ? formatFileSize(document.file_size) : "",
     };
@@ -347,6 +353,7 @@ export async function GET(request: NextRequest) {
         deadline.readableStatus,
         deadline.priorityLabel,
         deadline.remindersLabel,
+    deadline.recurrenceLabel,
         deadline.documentFileName,
       ]
         .join(" ")

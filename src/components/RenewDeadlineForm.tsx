@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
+import DateField from "@/components/DateField";
 import DeadlineDocumentField from "@/components/DeadlineDocumentField";
 import {
   createActivityLogs,
@@ -16,6 +17,7 @@ import {
   createRenewalHistory,
   type RenewalDocumentAction,
 } from "@/lib/renewal-history";
+import { getNextRecurringDate, getRecurrenceShortLabel, normalizeRecurrenceRule } from "@/lib/recurrence";
 import { createClient } from "@/lib/supabase/client";
 
 type DeadlineForRenewal = {
@@ -24,6 +26,7 @@ type DeadlineForRenewal = {
   category: string | null;
   due_date: string;
   notification_days: number[] | null;
+  recurrence_rule?: string | null;
 };
 
 type RenewDeadlineFormProps = {
@@ -163,6 +166,9 @@ export default function RenewDeadlineForm({
     () => normalizeNotificationDays(deadline.notification_days),
     [deadline.notification_days]
   );
+  const recurrenceRule = normalizeRecurrenceRule(deadline.recurrence_rule);
+  const suggestedRenewalDate = getNextRecurringDate(deadline.due_date, recurrenceRule);
+  const recurrencePreview = getRecurrenceShortLabel(recurrenceRule);
   const reminderPreview =
     normalizedNotificationDays.length > 0
       ? normalizedNotificationDays.map(formatReminder).join(" · ")
@@ -180,6 +186,21 @@ export default function RenewDeadlineForm({
 
     resetForm();
     setIsOpen(false);
+  };
+
+  const toggleForm = () => {
+    if (isLoading) return;
+
+    setIsOpen((currentValue) => {
+      if (currentValue) {
+        resetForm();
+        return false;
+      }
+
+      setRenewalDate(suggestedRenewalDate);
+      setErrorMessage("");
+      return true;
+    });
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -289,6 +310,7 @@ export default function RenewDeadlineForm({
         metadata: {
           previous_due_date: deadline.due_date,
           new_due_date: renewalDate,
+          recurrence_rule: recurrenceRule,
           reminders: normalizedNotificationDays,
         },
       },
@@ -369,6 +391,7 @@ export default function RenewDeadlineForm({
       reminders: normalizedNotificationDays,
       metadata: {
         source: "renewal_flow",
+        recurrence_rule: recurrenceRule,
       },
     });
 
@@ -416,7 +439,7 @@ Clôturer cette échéance et planifier la suivante
 
         <button
           type="button"
-          onClick={() => setIsOpen((currentValue) => !currentValue)}
+          onClick={toggleForm}
           className="inline-flex justify-center rounded-2xl bg-emerald-400 px-5 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-300 focus:outline-none focus:ring-4 focus:ring-emerald-300/20 lg:mt-8"
         >
           {isOpen ? "Fermer" : "J’ai traité cette échéance"}
@@ -455,27 +478,17 @@ Clôturer cette échéance et planifier la suivante
                 </div>
 
                 <div className="mt-6 grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <label
-                      htmlFor="renewalDate"
-                      className="mb-2 block text-sm font-semibold text-slate-100"
-                    >
-                      Prochaine date d’échéance{" "}
-                      <span className="text-emerald-200">*</span>
-                    </label>
-                    <input
-                      id="renewalDate"
-                      type="date"
-                      value={renewalDate}
-                      min={todayInputValue}
-                      onChange={(event) => setRenewalDate(event.target.value)}
-                      disabled={isLoading}
-                      className="w-full rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-white outline-none transition focus:border-emerald-300 focus:bg-slate-950 focus:ring-4 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-                    />
-                    <p className="mt-2 text-xs leading-5 text-slate-500">
-                      Date actuelle : {formatDateForPreview(deadline.due_date)}.
-                    </p>
-                  </div>
+                  <DateField
+                    id="renewalDate"
+                    label="Prochaine date d’échéance"
+                    value={renewalDate}
+                    min={todayInputValue}
+                    onChange={setRenewalDate}
+                    disabled={isLoading}
+                    required
+                    accent="emerald"
+                    hint={`Date actuelle : ${formatDateForPreview(deadline.due_date)}. Récurrence : ${recurrencePreview}.`}
+                  />
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -483,6 +496,11 @@ Clôturer cette échéance et planifier la suivante
                     </p>
                     <p className="mt-2 text-sm font-semibold text-slate-100">
                       {reminderPreview}
+                    </p>
+                    <p className="mt-2 text-xs font-semibold text-emerald-100/90">
+                      {suggestedRenewalDate
+                        ? `Date suggérée : ${formatDateForPreview(suggestedRenewalDate)}`
+                        : "Aucune date automatique"}
                     </p>
                     <p className="mt-2 text-xs leading-5 text-slate-500">
                       Vous pourrez ajuster les rappels depuis la page de

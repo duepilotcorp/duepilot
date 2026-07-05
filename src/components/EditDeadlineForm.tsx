@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
+import DateField from "@/components/DateField";
 import DeadlineDocumentField from "@/components/DeadlineDocumentField";
 import { createActivityLogs, type CreateActivityLogParams } from "@/lib/activity-logs";
 import NotificationDaysSelector, {
@@ -14,6 +15,8 @@ import {
   saveDeadlineDocument,
 } from "@/lib/deadline-document-actions";
 import type { DeadlineDocument } from "@/lib/deadline-documents";
+import { normalizeRecurrenceRule, RECURRENCE_SHORT_LABELS, type RecurrenceRule } from "@/lib/recurrence";
+import RecurrenceSelector from "@/components/RecurrenceSelector";
 import { createClient } from "@/lib/supabase/client";
 
 const CATEGORY_SUGGESTIONS = [
@@ -38,6 +41,7 @@ type Deadline = {
   category: string;
   due_date: string;
   notification_days?: number[] | null;
+  recurrence_rule?: string | null;
   created_at?: string;
   user_id?: string | null;
 };
@@ -173,6 +177,9 @@ export default function EditDeadlineForm({
   const [notificationDays, setNotificationDays] = useState<number[]>(
     initialNotificationDays
   );
+  const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>(
+    normalizeRecurrenceRule(deadline.recurrence_rule)
+  );
   const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(
     null
   );
@@ -196,6 +203,7 @@ export default function EditDeadlineForm({
     dueDate !== deadline.due_date ||
     JSON.stringify(normalizedNotificationDays) !==
       JSON.stringify(initialNotificationDays) ||
+    recurrenceRule !== normalizeRecurrenceRule(deadline.recurrence_rule) ||
     hasDocumentChanges;
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -237,6 +245,7 @@ export default function EditDeadlineForm({
         category: category.trim(),
         due_date: dueDate,
         notification_days: selectedNotificationDays,
+        recurrence_rule: recurrenceRule,
       })
       .eq("id", deadline.id);
 
@@ -339,6 +348,21 @@ export default function EditDeadlineForm({
         metadata: {
           previous_notification_days: initialNotificationDays,
           new_notification_days: selectedNotificationDays,
+        },
+      });
+    }
+
+    if (recurrenceRule !== normalizeRecurrenceRule(deadline.recurrence_rule)) {
+      activityLogs.push({
+        supabase,
+        userId: user.id,
+        deadlineId: deadline.id,
+        action: "deadline.recurrence_updated",
+        title: "Récurrence modifiée",
+        description: `La récurrence est passée de « ${RECURRENCE_SHORT_LABELS[normalizeRecurrenceRule(deadline.recurrence_rule)]} » à « ${RECURRENCE_SHORT_LABELS[recurrenceRule]} ».`,
+        metadata: {
+          previous_recurrence_rule: normalizeRecurrenceRule(deadline.recurrence_rule),
+          new_recurrence_rule: recurrenceRule,
         },
       });
     }
@@ -470,25 +494,25 @@ export default function EditDeadlineForm({
               </div>
             </div>
 
-            <div>
-              <label
-                htmlFor="dueDate"
-                className="mb-2 block text-sm font-semibold text-slate-100"
-              >
-                Date d’échéance <span className="text-blue-200">*</span>
-              </label>
-
-              <input
-                id="dueDate"
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                disabled={isLoading}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-white outline-none transition focus:border-blue-400 focus:bg-slate-950 focus:ring-4 focus:ring-blue-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </div>
+            <DateField
+              id="dueDate"
+              label="Date d’échéance"
+              value={dueDate}
+              onChange={setDueDate}
+              disabled={isLoading}
+              required
+              hint="Utilisez le calendrier ou les raccourcis pour ajuster rapidement la date."
+            />
           </div>
         </section>
+
+        <RecurrenceSelector
+          value={recurrenceRule}
+          onChange={setRecurrenceRule}
+          disabled={isLoading}
+          dueDate={dueDate}
+          stepLabel="Étape 2/4"
+        />
 
         <DeadlineDocumentField
           selectedFile={selectedDocumentFile}
@@ -497,13 +521,14 @@ export default function EditDeadlineForm({
           shouldRemoveExistingDocument={shouldRemoveDocument}
           onShouldRemoveExistingDocumentChange={setShouldRemoveDocument}
           disabled={isLoading}
+          stepLabel="Étape 3/4"
         />
 
         <NotificationDaysSelector
           selectedDays={notificationDays}
           onChange={setNotificationDays}
           disabled={isLoading}
-          stepLabel="Étape 3/3"
+          stepLabel="Étape 4/4"
         />
 
         {errorMessage && (
@@ -579,6 +604,15 @@ export default function EditDeadlineForm({
               </p>
               <p className="mt-1 text-slate-300">
                 {getReminderPreview(normalizedNotificationDays)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-600">
+                Récurrence
+              </p>
+              <p className="mt-1 text-slate-300">
+                {RECURRENCE_SHORT_LABELS[recurrenceRule]}
               </p>
             </div>
 

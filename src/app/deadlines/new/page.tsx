@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import DateField from "@/components/DateField";
 import DeadlineDocumentField from "@/components/DeadlineDocumentField";
 import DeadlineTemplatePicker from "@/components/DeadlineTemplatePicker";
+import RecurrenceSelector from "@/components/RecurrenceSelector";
 import NotificationDaysSelector, {
   DEFAULT_NOTIFICATION_DAYS,
   normalizeNotificationDays,
@@ -13,6 +15,7 @@ import { createActivityLogs } from "@/lib/activity-logs";
 import { canManageTeamDeadlines, type DeadlineVisibility } from "@/lib/deadline-access";
 import { saveDeadlineDocument } from "@/lib/deadline-document-actions";
 import type { DeadlineTemplate } from "@/lib/deadline-templates";
+import { RECURRENCE_SHORT_LABELS, type RecurrenceRule } from "@/lib/recurrence";
 import { createClient } from "@/lib/supabase/client";
 
 const CATEGORY_SUGGESTIONS = [
@@ -143,6 +146,7 @@ export default function NewDeadlinePage() {
     DEFAULT_NOTIFICATION_DAYS
   );
   const [visibility, setVisibility] = useState<DeadlineVisibility>("personal");
+  const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>("none");
   const [canCreateTeamDeadline, setCanCreateTeamDeadline] = useState(false);
   const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(
     null
@@ -264,6 +268,7 @@ export default function NewDeadlinePage() {
         visibility: safeVisibility,
         workflow_status: "open",
         notification_days: selectedNotificationDays,
+        recurrence_rule: recurrenceRule,
       })
       .select("id")
       .single();
@@ -311,6 +316,7 @@ export default function NewDeadlinePage() {
           category: category.trim(),
           due_date: dueDate,
           notification_days: selectedNotificationDays,
+          recurrence_rule: recurrenceRule,
           template: appliedTemplateName || null,
           visibility: safeVisibility,
         },
@@ -377,6 +383,7 @@ export default function NewDeadlinePage() {
                 <p>{deadlinePreviewCategory}</p>
                 <p>{formatDateForPreview(dueDate)}</p>
                 <p>{getReminderPreview(normalizedNotificationDays)}</p>
+                <p>Récurrence : {RECURRENCE_SHORT_LABELS[recurrenceRule]}</p>
                 <p>
                   {appliedTemplateName
                     ? `Modèle : ${appliedTemplateName}`
@@ -526,37 +533,38 @@ export default function NewDeadlinePage() {
                   </div>
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="dueDate"
-                    className="mb-2 block text-sm font-semibold text-slate-100"
-                  >
-                    Date d’échéance <span className="text-blue-200">*</span>
-                  </label>
-
-                  <input
-                    id="dueDate"
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    disabled={isLoading}
-                    className="w-full rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-white outline-none transition focus:border-blue-400 focus:bg-slate-950 focus:ring-4 focus:ring-blue-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-                  />
-                </div>
+                <DateField
+                  id="dueDate"
+                  label="Date d’échéance"
+                  value={dueDate}
+                  onChange={setDueDate}
+                  disabled={isLoading}
+                  required
+                  hint="Utilisez le calendrier ou les raccourcis pour renseigner rapidement une date fiable."
+                />
               </div>
             </section>
+
+            <RecurrenceSelector
+              value={recurrenceRule}
+              onChange={setRecurrenceRule}
+              disabled={isLoading}
+              dueDate={dueDate}
+              stepLabel="Étape 2/4"
+            />
 
             <DeadlineDocumentField
               selectedFile={selectedDocumentFile}
               onSelectedFileChange={setSelectedDocumentFile}
               disabled={isLoading}
+              stepLabel="Étape 3/4"
             />
 
             <NotificationDaysSelector
               selectedDays={notificationDays}
               onChange={setNotificationDays}
               disabled={isLoading}
-              stepLabel="Étape 3/3"
+              stepLabel="Étape 4/4"
             />
 
             {errorMessage && (
