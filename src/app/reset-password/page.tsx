@@ -17,6 +17,7 @@ export default function ResetPasswordPage() {
   const [sessionMessage, setSessionMessage] = useState("Vérification du lien sécurisé...");
   const [sessionState, setSessionState] = useState<"checking" | "valid" | "error" | "idle">("checking");
   const [hasRecoverySession, setHasRecoverySession] = useState(false);
+  const [isWelcomeFlow, setIsWelcomeFlow] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -39,7 +40,12 @@ export default function ResetPasswordPage() {
     const hydrateRecoverySession = async () => {
       const currentUrl = new URL(window.location.href);
       const code = currentUrl.searchParams.get("code");
+      const welcome = currentUrl.searchParams.get("welcome") === "1";
       const searchErrorCode = currentUrl.searchParams.get("error_code");
+
+      if (isMounted) {
+        setIsWelcomeFlow(welcome);
+      }
       const hash = window.location.hash.startsWith("#")
         ? window.location.hash.slice(1)
         : window.location.hash;
@@ -55,7 +61,7 @@ export default function ResetPasswordPage() {
         if (!isMounted) return;
 
         if (!error) {
-          markValidSession("Lien sécurisé validé. Vous pouvez choisir un nouveau mot de passe.");
+          markValidSession(welcome ? "Lien sécurisé validé. Vous pouvez créer votre mot de passe." : "Lien sécurisé validé. Vous pouvez choisir un nouveau mot de passe.");
           return;
         }
       }
@@ -69,7 +75,7 @@ export default function ResetPasswordPage() {
         if (!isMounted) return;
 
         if (!error) {
-          markValidSession("Lien sécurisé validé. Vous pouvez choisir un nouveau mot de passe.");
+          markValidSession(welcome ? "Lien sécurisé validé. Vous pouvez créer votre mot de passe." : "Lien sécurisé validé. Vous pouvez choisir un nouveau mot de passe.");
           return;
         }
       }
@@ -82,7 +88,9 @@ export default function ResetPasswordPage() {
 
       if (session) {
         markValidSession(
-          "Session sécurisée détectée. Vous pouvez choisir un nouveau mot de passe."
+          welcome
+            ? "Session sécurisée détectée. Vous pouvez créer votre mot de passe."
+            : "Session sécurisée détectée. Vous pouvez choisir un nouveau mot de passe."
         );
         return;
       }
@@ -95,7 +103,9 @@ export default function ResetPasswordPage() {
       setHasRecoverySession(false);
       setSessionState("idle");
       setSessionMessage(
-        "Ouvrez cette page depuis le lien reçu par email pour activer la réinitialisation."
+        welcome
+          ? "Ouvrez cette page depuis le lien d’activation reçu par email pour créer votre compte."
+          : "Ouvrez cette page depuis le lien reçu par email pour activer la réinitialisation."
       );
     };
 
@@ -144,7 +154,11 @@ export default function ResetPasswordPage() {
 
     setPassword("");
     setConfirmPassword("");
-    setSuccessMessage("Mot de passe mis à jour. Redirection vers le dashboard...");
+    setSuccessMessage(
+      isWelcomeFlow
+        ? "Mot de passe créé. Redirection vers votre espace DuePilot..."
+        : "Mot de passe mis à jour. Redirection vers le dashboard..."
+    );
 
     window.setTimeout(() => {
       router.replace("/dashboard");
@@ -166,13 +180,15 @@ export default function ResetPasswordPage() {
 
             <div className="mt-8">
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-200">
-                Nouveau mot de passe
+                {isWelcomeFlow ? "Création de compte" : "Nouveau mot de passe"}
               </p>
               <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                Sécuriser votre accès DuePilot
+                {isWelcomeFlow ? "Créer votre accès DuePilot" : "Sécuriser votre accès DuePilot"}
               </h1>
               <p className="mt-3 leading-7 text-slate-400">
-                Choisissez un mot de passe robuste. Il remplacera immédiatement l’ancien mot de passe de votre compte.
+                {isWelcomeFlow
+                  ? "Choisissez votre mot de passe pour activer votre compte beta DuePilot."
+                  : "Choisissez un mot de passe robuste. Il remplacera immédiatement l’ancien mot de passe de votre compte."}
               </p>
             </div>
 
@@ -227,7 +243,13 @@ export default function ResetPasswordPage() {
                 disabled={isLoading || !hasRecoverySession}
                 className="w-full rounded-2xl bg-blue-500 px-6 py-4 text-sm font-semibold text-white shadow-2xl shadow-blue-500/20 transition hover:-translate-y-0.5 hover:bg-blue-400 disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-blue-500/50 disabled:shadow-none"
               >
-                {isLoading ? "Modification..." : "Enregistrer le nouveau mot de passe"}
+                {isLoading
+                  ? isWelcomeFlow
+                    ? "Création..."
+                    : "Modification..."
+                  : isWelcomeFlow
+                    ? "Créer mon mot de passe"
+                    : "Enregistrer le nouveau mot de passe"}
               </button>
             </form>
           </div>

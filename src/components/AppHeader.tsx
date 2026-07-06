@@ -157,10 +157,12 @@ export default function AppHeader({
                 </Link>
                 {isAdminUser ? (
                   <Link
-                    href="/admin/beta-requests"
-                    className="rounded-2xl px-3 py-2.5 text-sm font-semibold text-purple-100 transition hover:bg-purple-400/10 hover:text-white"
+                    href="/admin"
+                    className={`rounded-2xl px-3 py-2.5 text-sm font-semibold transition hover:bg-purple-400/10 hover:text-white ${
+                      active === "admin" ? "bg-purple-400/10 text-white" : "text-purple-100"
+                    }`}
                   >
-                    Admin beta
+                    Administration
                   </Link>
                 ) : null}
               </div>

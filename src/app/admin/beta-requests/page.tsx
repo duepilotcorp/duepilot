@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import AdminNavigation from "@/components/AdminNavigation";
 import AppHeader from "@/components/AppHeader";
 import {
   BETA_ACCESS_STATUS_LABELS,
   BETA_ACCESS_STATUSES,
+  activateBetaAccessRequest,
   isBetaAccessStatus,
   type BetaAccessStatus,
 } from "@/lib/beta-access-admin";
@@ -57,7 +59,7 @@ function getStatusDescription(status: BetaAccessStatus) {
   const descriptions: Record<BetaAccessStatus, string> = {
     new: "Demande reçue, à qualifier.",
     contacted: "L’entreprise a été recontactée.",
-    accepted: "Accès beta validé ou à ouvrir.",
+    accepted: "Compte prêt et lien d’accès envoyé.",
     rejected: "Demande écartée pour le moment.",
   };
 
@@ -89,7 +91,38 @@ async function updateBetaAccessRequest(formData: FormData) {
     .slice(0, 1200);
 
   if (!id || !isBetaAccessStatus(status)) {
-    return;
+    redirect("/admin/beta-requests?error=invalid");
+  }
+
+  const { data: requestData, error: requestError } = await supabaseAdmin
+    .from("beta_access_requests")
+    .select(
+      "id, created_at, updated_at, full_name, email, company, role, deadline_volume, message, status, internal_notes"
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  const request = requestData as BetaAccessRequest | null;
+
+  if (requestError || !request) {
+    console.error(requestError);
+    redirect("/admin/beta-requests?error=not-found");
+  }
+
+  if (status === "accepted" && request.status !== "accepted") {
+    const activationResult = await activateBetaAccessRequest({
+      ...request,
+      internal_notes: internalNotes || request.internal_notes,
+    });
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/beta-requests");
+
+    if (!activationResult.success) {
+      redirect(`/admin/beta-requests?error=${encodeURIComponent(activationResult.message)}`);
+    }
+
+    redirect("/admin/beta-requests?access=sent");
   }
 
   const { error } = await supabaseAdmin
@@ -103,13 +136,79 @@ async function updateBetaAccessRequest(formData: FormData) {
 
   if (error) {
     console.error(error);
-    return;
+    redirect("/admin/beta-requests?error=save");
   }
 
+  revalidatePath("/admin");
   revalidatePath("/admin/beta-requests");
+  redirect("/admin/beta-requests?saved=1");
 }
 
-export default async function BetaRequestsAdminPage() {
+async function resendBetaAccessEmail(formData: FormData) {
+  "use server";
+
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    redirect("/login");
+  }
+
+  if (!(await isUserAdmin(user.id))) {
+    redirect("/dashboard");
+  }
+
+  const id = String(formData.get("id") ?? "").trim();
+
+  if (!id) {
+    redirect("/admin/beta-requests?error=invalid");
+  }
+
+  const { data: requestData, error: requestError } = await supabaseAdmin
+    .from("beta_access_requests")
+    .select(
+      "id, created_at, updated_at, full_name, email, company, role, deadline_volume, message, status, internal_notes"
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  const request = requestData as BetaAccessRequest | null;
+
+  if (requestError || !request) {
+    console.error(requestError);
+    redirect("/admin/beta-requests?error=not-found");
+  }
+
+  const activationResult = await activateBetaAccessRequest(request);
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/beta-requests");
+
+  if (!activationResult.success) {
+    redirect(`/admin/beta-requests?error=${encodeURIComponent(activationResult.message)}`);
+  }
+
+  redirect("/admin/beta-requests?access=resent");
+}
+
+type BetaRequestsAdminPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function getSearchParam(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string
+) {
+  const value = searchParams[key];
+
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function BetaRequestsAdminPage({ searchParams }: BetaRequestsAdminPageProps) {
   const supabase = await createClient();
 
   const {
@@ -136,14 +235,18 @@ export default async function BetaRequestsAdminPage() {
     .select(
       "id, created_at, updated_at, full_name, email, company, role, deadline_volume, message, status, internal_notes"
     )
-    .order("created_at", { ascending: false })
-    .returns<BetaAccessRequest[]>();
+    .order("created_at", { ascending: false });
 
   if (error) {
     console.error(error);
   }
 
-  const requests = data ?? [];
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const saved = getSearchParam(resolvedSearchParams, "saved") === "1";
+  const accessState = getSearchParam(resolvedSearchParams, "access");
+  const errorMessage = getSearchParam(resolvedSearchParams, "error");
+
+  const requests = (data ?? []) as BetaAccessRequest[];
   const counts = BETA_ACCESS_STATUSES.reduce<Record<BetaAccessStatus, number>>(
     (accumulator, status) => {
       accumulator[status] = requests.filter((request) => request.status === status).length;
@@ -174,6 +277,26 @@ export default async function BetaRequestsAdminPage() {
           isAdminUser
           active="admin"
         />
+
+        <AdminNavigation active="beta" />
+
+        {(saved || accessState || errorMessage) ? (
+          <div
+            className={`mt-6 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+              errorMessage
+                ? "border-red-400/25 bg-red-400/10 text-red-100"
+                : "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
+            }`}
+          >
+            {errorMessage
+              ? errorMessage
+              : accessState === "sent"
+                ? "Accès beta créé et email d’activation envoyé."
+                : accessState === "resent"
+                  ? "Lien d’activation beta renvoyé."
+                  : "Suivi beta enregistré."}
+          </div>
+        ) : null}
 
         <section className="premium-sheen mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-blue-950/20 backdrop-blur animate-rise-in">
           <div className="relative p-6 sm:p-8 lg:p-10">
@@ -225,7 +348,7 @@ export default async function BetaRequestsAdminPage() {
             <div>
               <h2 className="text-2xl font-bold text-white">Demandes reçues</h2>
               <p className="mt-1 text-sm text-slate-400">
-                Les demandes sont aussi envoyées par email. Cette vue sert de suivi interne.
+                Acceptez une demande pour créer/préparer le compte et envoyer automatiquement le lien de création du mot de passe.
               </p>
             </div>
             <Link
@@ -339,6 +462,10 @@ export default async function BetaRequestsAdminPage() {
                         className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/70 focus:bg-slate-900"
                       />
 
+                      <p className="mt-4 rounded-2xl border border-blue-400/20 bg-blue-400/10 px-4 py-3 text-xs leading-5 text-blue-100">
+                        Si vous passez le statut sur “Accepté”, DuePilot crée ou retrouve le compte Supabase, puis envoie un email avec lien sécurisé de création du mot de passe.
+                      </p>
+
                       <button
                         type="submit"
                         className="mt-4 inline-flex w-full justify-center rounded-2xl bg-blue-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/30 transition hover:-translate-y-0.5 hover:bg-blue-400"
@@ -346,6 +473,18 @@ export default async function BetaRequestsAdminPage() {
                         Enregistrer le suivi
                       </button>
                     </form>
+
+                    {request.status === "accepted" ? (
+                      <form action={resendBetaAccessEmail} className="xl:col-start-2">
+                        <input type="hidden" name="id" value={request.id} />
+                        <button
+                          type="submit"
+                          className="inline-flex w-full justify-center rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-5 py-3 text-sm font-bold text-emerald-100 transition hover:-translate-y-0.5 hover:border-emerald-300/40 hover:bg-emerald-400/15 hover:text-white"
+                        >
+                          Renvoyer le lien d’activation
+                        </button>
+                      </form>
+                    ) : null}
                   </div>
                 </article>
               ))}

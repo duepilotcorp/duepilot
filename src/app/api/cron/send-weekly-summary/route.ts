@@ -11,6 +11,9 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.duepilot.fr";
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 type WeeklySummaryDeadline = {
   id: number;
   title: string;
@@ -423,6 +426,18 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const requestUrl = new URL(request.url);
+  const isDryRun = requestUrl.searchParams.get("dryRun") === "1";
+
+  if (!isDryRun && !process.env.RESEND_API_KEY) {
+    console.error("RESEND_API_KEY is not configured.");
+
+    return Response.json(
+      { error: "Email provider is not configured correctly." },
+      { status: 500 }
+    );
+  }
+
   const today = getTodayAtMidnight();
   const weekStart = formatWeekStart(today);
 
@@ -452,6 +467,29 @@ export async function GET(request: Request) {
       continue;
     }
 
+    const { organizationId, organizationName } = await getUserOrganizationInfo(userId);
+    const deadlines = await getAccessibleDeadlines({ userId, organizationId });
+    const groups = buildSummaryGroups(deadlines, today);
+    const activeCount = deadlines.filter(
+      (deadline) => normalizeDeadlineWorkflowStatus(deadline.workflow_status) !== "archived"
+    ).length;
+
+    if (isDryRun) {
+      results.push({
+        userId,
+        email,
+        status: "dry_run",
+        organizationName,
+        activeCount,
+        overdueCount: groups.overdue.length,
+        next7DaysCount: groups.next7Days.length,
+        next30DaysCount: groups.next30Days.length,
+        pendingValidationCount: groups.pendingValidation.length,
+        criticalCount: groups.critical.length,
+      });
+      continue;
+    }
+
     const { data: logReservation, error: logReservationError } = await supabaseAdmin
       .from("weekly_summary_logs")
       .insert({
@@ -474,12 +512,6 @@ export async function GET(request: Request) {
       continue;
     }
 
-    const { organizationId, organizationName } = await getUserOrganizationInfo(userId);
-    const deadlines = await getAccessibleDeadlines({ userId, organizationId });
-    const groups = buildSummaryGroups(deadlines, today);
-    const activeCount = deadlines.filter(
-      (deadline) => normalizeDeadlineWorkflowStatus(deadline.workflow_status) !== "archived"
-    ).length;
     const displayName =
       typeof userData.user.user_metadata?.full_name === "string" &&
       userData.user.user_metadata.full_name.trim()
@@ -543,11 +575,13 @@ export async function GET(request: Request) {
 
   return Response.json({
     success: true,
+    dryRun: isDryRun,
     weekStart,
     optInUsers: preferences?.length ?? 0,
     sent: results.filter((result) => result.status === "sent").length,
     skipped: results.filter((result) => result.status === "skipped").length,
     failed: results.filter((result) => result.status === "failed").length,
+    checked: results.filter((result) => result.status === "dry_run").length,
     results,
   });
 }

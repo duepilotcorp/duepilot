@@ -139,7 +139,7 @@ export async function POST(request: Request) {
         </table>
 
         <p style="margin-top: 24px; color: #475569;">
-          Pour ouvrir l’accès, inviter manuellement l’utilisateur depuis Supabase Auth.
+          Pour ouvrir l’accès, rendez-vous dans Administration → Demandes beta, passez la demande en “Accepté” et validez. DuePilot créera le compte et enverra automatiquement le lien de création du mot de passe.
         </p>
       </div>
     `,
