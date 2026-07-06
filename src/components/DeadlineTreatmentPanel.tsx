@@ -86,7 +86,7 @@ export default function DeadlineTreatmentPanel({
   };
 
   return (
-    <section className="mt-8 rounded-[2rem] border border-cyan-400/20 bg-gradient-to-br from-cyan-400/10 via-slate-900/90 to-blue-500/10 p-6 shadow-2xl shadow-cyan-950/20 sm:p-7">
+    <section id="treatment" className="mt-8 scroll-mt-28 rounded-[2rem] border border-cyan-400/20 bg-gradient-to-br from-cyan-400/10 via-slate-900/90 to-blue-500/10 p-6 shadow-2xl shadow-cyan-950/20 sm:p-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-3xl">
           <div className="inline-flex rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100">

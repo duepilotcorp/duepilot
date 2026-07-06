@@ -341,56 +341,63 @@ export default async function DeadlineDetailPage({
   const isOwner = typedDeadline.user_id === user.id;
   const claimedByCurrentUser = typedDeadline.claimed_by === user.id;
   const completedByCurrentUser = typedDeadline.completed_by === user.id;
-  const claimedByDisplayName = await getAuthUserDisplayName(typedDeadline.claimed_by);
-  const completedByDisplayName = await getAuthUserDisplayName(typedDeadline.completed_by);
 
-  const documents = await getDeadlineDocumentListByDeadlineId({
-    supabase,
-    userId: user.id,
-    deadlineId: typedDeadline.id,
-  });
-  const document = documents[0] ?? null;
+  const [
+    claimedByDisplayName,
+    completedByDisplayName,
+    documents,
+    checklistItemsResult,
+    notificationLogsResult,
+    activityLogs,
+    renewalHistory,
+  ] = await Promise.all([
+    getAuthUserDisplayName(typedDeadline.claimed_by),
+    getAuthUserDisplayName(typedDeadline.completed_by),
+    getDeadlineDocumentListByDeadlineId({
+      supabase,
+      userId: user.id,
+      deadlineId: typedDeadline.id,
+    }),
+    supabase
+      .from("deadline_checklist_items")
+      .select("id, deadline_id, title, is_completed, position, created_by, completed_by, completed_at, created_at, updated_at")
+      .eq("deadline_id", typedDeadline.id)
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("notification_logs")
+      .select("id, created_at, notification_day, due_date")
+      .eq("deadline_id", typedDeadline.id)
+      .order("created_at", { ascending: false })
+      .limit(5)
+      .returns<NotificationLog[]>(),
+    getDeadlineActivityLogs({
+      supabase,
+      userId: user.id,
+      deadlineId: typedDeadline.id,
+      limit: 20,
+    }),
+    getDeadlineRenewalHistory({
+      supabase,
+      userId: user.id,
+      deadlineId: typedDeadline.id,
+      limit: 12,
+    }),
+  ]);
 
-  const { data: checklistItemsData, error: checklistItemsError } = await supabase
-    .from("deadline_checklist_items")
-    .select("id, deadline_id, title, is_completed, position, created_by, completed_by, completed_at, created_at, updated_at")
-    .eq("deadline_id", typedDeadline.id)
-    .order("position", { ascending: true })
-    .order("created_at", { ascending: true });
-
-  if (checklistItemsError) {
-    console.error(checklistItemsError);
+  if (checklistItemsResult.error) {
+    console.error(checklistItemsResult.error);
   }
 
-  const checklistItems = checklistItemsError
+  if (notificationLogsResult.error) {
+    console.error(notificationLogsResult.error);
+  }
+
+  const checklistItems = checklistItemsResult.error
     ? []
-    : ((checklistItemsData ?? []) as DeadlineChecklistItem[]);
-
-  const { data: notificationLogs, error: notificationLogsError } = await supabase
-    .from("notification_logs")
-    .select("id, created_at, notification_day, due_date")
-    .eq("deadline_id", typedDeadline.id)
-    .order("created_at", { ascending: false })
-    .limit(8)
-    .returns<NotificationLog[]>();
-
-  if (notificationLogsError) {
-    console.error(notificationLogsError);
-  }
-
-  const logs = notificationLogsError ? [] : notificationLogs ?? [];
-  const activityLogs = await getDeadlineActivityLogs({
-    supabase,
-    userId: user.id,
-    deadlineId: typedDeadline.id,
-    limit: 40,
-  });
-  const renewalHistory = await getDeadlineRenewalHistory({
-    supabase,
-    userId: user.id,
-    deadlineId: typedDeadline.id,
-    limit: 30,
-  });
+    : ((checklistItemsResult.data ?? []) as DeadlineChecklistItem[]);
+  const logs = notificationLogsResult.error ? [] : notificationLogsResult.data ?? [];
+  const document = documents[0] ?? null;
 
   const formattedDueDate = formatDeadlineDate(typedDeadline.due_date);
   const formattedCreatedAt = formatDateTime(typedDeadline.created_at);
@@ -405,6 +412,10 @@ export default async function DeadlineDetailPage({
   const reminderCount = normalizedNotificationDays.length;
   const importanceLevel = normalizeDeadlineImportance(typedDeadline.importance_level);
   const importanceLabel = getDeadlineImportanceLabel(importanceLevel);
+  const hasTreatmentContent =
+    checklistItems.length > 0 ||
+    Boolean(typedDeadline.treatment_note?.trim()) ||
+    Boolean(typedDeadline.useful_link_url?.trim());
 
   const keyMetrics = [
     {
@@ -619,6 +630,67 @@ Fiche échéance
 
 
 
+        <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <a
+            href="#documents"
+            className="group rounded-3xl border border-blue-400/20 bg-blue-400/10 p-5 transition hover:-translate-y-0.5 hover:border-blue-300/40 hover:bg-blue-400/15"
+          >
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-100/80">
+              Documents
+            </span>
+            <p className="mt-3 text-2xl font-bold text-white">
+              {documents.length} fichier{documents.length > 1 ? "s" : ""}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-blue-50/70">
+              Voir les justificatifs associés.
+            </p>
+          </a>
+          <a
+            href={hasTreatmentContent ? "#treatment" : `/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
+            className="group rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-5 transition hover:-translate-y-0.5 hover:border-cyan-300/40 hover:bg-cyan-400/15"
+          >
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100/80">
+              Traitement
+            </span>
+            <p className="mt-3 text-2xl font-bold text-white">
+              {checklistItems.length} étape{checklistItems.length > 1 ? "s" : ""}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-cyan-50/70">
+              {hasTreatmentContent
+                ? "Checklist, note et lien utile."
+                : "Ajouter une checklist ou une note."}
+            </p>
+          </a>
+          <a
+            href="#renewal-action"
+            className="group rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-5 transition hover:-translate-y-0.5 hover:border-emerald-300/40 hover:bg-emerald-400/15"
+          >
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100/80">
+              Action
+            </span>
+            <p className="mt-3 text-2xl font-bold text-white">
+              Clôturer
+            </p>
+            <p className="mt-2 text-sm leading-6 text-emerald-50/70">
+              Traiter puis planifier la suite.
+            </p>
+          </a>
+          <a
+            href="#activity"
+            className="group rounded-3xl border border-white/10 bg-white/[0.04] p-5 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07]"
+          >
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Historique
+            </span>
+            <p className="mt-3 text-2xl font-bold text-white">
+              {activityLogs.length} action{activityLogs.length > 1 ? "s" : ""}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Logs et renouvellements récents.
+            </p>
+          </a>
+        </section>
+
         <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.9fr]">
           <div className="space-y-6">
             <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
@@ -785,7 +857,7 @@ Fiche échéance
               )}
             </section>
 
-            <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
+            <section id="activity" className="scroll-mt-28 rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
               <div>
                 <h2 className="text-2xl font-bold text-white">
                   Journal d’activité
