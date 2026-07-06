@@ -1,18 +1,19 @@
 "use client";
 
-import { type ChangeEvent, useRef, useState } from "react";
+import { type ChangeEvent, useMemo, useRef, useState } from "react";
 import {
   formatFileSize,
+  getDeadlineDocumentFormatLabel,
   validateDeadlineDocumentFile,
   type DeadlineDocument,
 } from "@/lib/deadline-documents";
 
 type DeadlineDocumentFieldProps = {
-  selectedFile: File | null;
-  onSelectedFileChange: (file: File | null) => void;
-  existingDocument?: DeadlineDocument | null;
-  shouldRemoveExistingDocument?: boolean;
-  onShouldRemoveExistingDocumentChange?: (shouldRemove: boolean) => void;
+  selectedFiles: File[];
+  onSelectedFilesChange: (files: File[]) => void;
+  existingDocuments?: DeadlineDocument[];
+  documentIdsToRemove?: number[];
+  onDocumentIdsToRemoveChange?: (documentIds: number[]) => void;
   disabled?: boolean;
   stepLabel?: string;
   description?: string;
@@ -20,47 +21,79 @@ type DeadlineDocumentFieldProps = {
 };
 
 export default function DeadlineDocumentField({
-  selectedFile,
-  onSelectedFileChange,
-  existingDocument = null,
-  shouldRemoveExistingDocument = false,
-  onShouldRemoveExistingDocumentChange,
+  selectedFiles,
+  onSelectedFilesChange,
+  existingDocuments = [],
+  documentIdsToRemove = [],
+  onDocumentIdsToRemoveChange,
   disabled = false,
   stepLabel = "Étape 2/3",
-  description = "Joignez l’attestation, le contrat, le certificat, le rapport ou l’image lié à cette échéance.",
-  emptyDescription = "L’échéance peut être créée sans document. Vous pourrez en ajouter un plus tard depuis la page d’édition.",
+  description = "Joignez les attestations, contrats, certificats, rapports ou images liés à cette échéance.",
+  emptyDescription = "L’échéance peut être créée sans document. Vous pourrez en ajouter plus tard depuis la page d’édition.",
 }: DeadlineDocumentFieldProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [localError, setLocalError] = useState("");
 
-  const hasVisibleExistingDocument =
-    Boolean(existingDocument) && !shouldRemoveExistingDocument && !selectedFile;
+  const removedDocumentIds = useMemo(
+    () => new Set(documentIdsToRemove),
+    [documentIdsToRemove]
+  );
+  const visibleExistingDocuments = existingDocuments.filter(
+    (document) => !removedDocumentIds.has(document.id)
+  );
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.currentTarget.files?.[0] ?? null;
+    const files = Array.from(event.currentTarget.files ?? []);
 
     setLocalError("");
 
-    if (!file) {
-      onSelectedFileChange(null);
+    if (files.length === 0) {
       return;
     }
 
-    const validationError = validateDeadlineDocumentFile(file);
+    const invalidFile = files.find((file) => validateDeadlineDocumentFile(file));
 
-    if (validationError) {
-      setLocalError(validationError);
-      onSelectedFileChange(null);
+    if (invalidFile) {
+      setLocalError(validateDeadlineDocumentFile(invalidFile) ?? "Ce document n’est pas valide.");
       event.currentTarget.value = "";
       return;
     }
 
-    onSelectedFileChange(file);
-    onShouldRemoveExistingDocumentChange?.(false);
+    const existingKeys = new Set(
+      selectedFiles.map((file) => `${file.name}-${file.size}-${file.lastModified}`)
+    );
+    const nextFiles = [...selectedFiles];
+
+    files.forEach((file) => {
+      const key = `${file.name}-${file.size}-${file.lastModified}`;
+      if (!existingKeys.has(key)) {
+        nextFiles.push(file);
+        existingKeys.add(key);
+      }
+    });
+
+    onSelectedFilesChange(nextFiles);
+    event.currentTarget.value = "";
   };
 
-  const clearSelectedFile = () => {
-    onSelectedFileChange(null);
+  const removeSelectedFile = (fileIndex: number) => {
+    setLocalError("");
+    onSelectedFilesChange(selectedFiles.filter((_, index) => index !== fileIndex));
+  };
+
+  const toggleRemoveExistingDocument = (documentId: number) => {
+    if (!onDocumentIdsToRemoveChange) return;
+
+    if (removedDocumentIds.has(documentId)) {
+      onDocumentIdsToRemoveChange(documentIdsToRemove.filter((id) => id !== documentId));
+      return;
+    }
+
+    onDocumentIdsToRemoveChange([...documentIdsToRemove, documentId]);
+  };
+
+  const clearSelectedFiles = () => {
+    onSelectedFilesChange([]);
     setLocalError("");
 
     if (inputRef.current) {
@@ -68,21 +101,11 @@ export default function DeadlineDocumentField({
     }
   };
 
-  const removeExistingDocument = () => {
-    clearSelectedFile();
-    onShouldRemoveExistingDocumentChange?.(true);
-  };
-
-  const restoreExistingDocument = () => {
-    onShouldRemoveExistingDocumentChange?.(false);
-    setLocalError("");
-  };
-
   return (
     <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-2xl shadow-slate-950/20 sm:p-6">
       <div className="flex flex-col gap-2 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-white">Document associé</p>
+          <p className="text-sm font-semibold text-white">Documents associés</p>
           <p className="mt-1 max-w-xl text-sm leading-6 text-slate-400">
             {description}
           </p>
@@ -93,7 +116,7 @@ export default function DeadlineDocumentField({
         </span>
       </div>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.9fr] lg:items-stretch">
+      <div className="mt-5 grid gap-4 lg:grid-cols-[0.85fr_1.15fr] lg:items-stretch">
         <label
           htmlFor="deadlineDocument"
           className={`group flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed p-6 text-center transition ${
@@ -106,6 +129,7 @@ export default function DeadlineDocumentField({
             ref={inputRef}
             id="deadlineDocument"
             type="file"
+            multiple
             accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"
             disabled={disabled}
             onChange={handleFileChange}
@@ -116,95 +140,113 @@ export default function DeadlineDocumentField({
             ↑
           </span>
           <span className="mt-4 text-sm font-bold text-white">
-            Ajouter un document
+            Ajouter un ou plusieurs documents
           </span>
           <span className="mt-2 max-w-sm text-xs leading-5 text-slate-400">
-            PDF, PNG, JPG, JPEG ou WEBP, 25 Mo maximum. Le fichier sera stocké
-            dans l’espace sécurisé de l’utilisateur connecté.
+            PDF, PNG, JPG, JPEG ou WEBP, 25 Mo maximum par fichier. Les fichiers seront stockés dans l’espace sécurisé de l’utilisateur connecté.
           </span>
         </label>
 
         <div className="rounded-3xl border border-white/10 bg-slate-950/35 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-            État du document
-          </p>
-
-          {selectedFile ? (
-            <div className="mt-4 rounded-2xl border border-blue-400/25 bg-blue-400/10 p-4">
-              <p className="text-sm font-bold text-blue-100">
-                Nouveau document prêt
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                État des documents
               </p>
-              <p className="mt-2 break-words text-sm text-slate-200">
-                {selectedFile.name}
+              <p className="mt-1 text-sm text-slate-400">
+                {visibleExistingDocuments.length + selectedFiles.length} document{visibleExistingDocuments.length + selectedFiles.length > 1 ? "s" : ""} actif{visibleExistingDocuments.length + selectedFiles.length > 1 ? "s" : ""}
               </p>
-              <p className="mt-1 text-xs text-slate-400">
-                {formatFileSize(selectedFile.size)}
-              </p>
+            </div>
+            {selectedFiles.length > 0 ? (
               <button
                 type="button"
-                onClick={clearSelectedFile}
+                onClick={clearSelectedFiles}
                 disabled={disabled}
-                className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Retirer ce fichier
+                Retirer les nouveaux fichiers
               </button>
-            </div>
-          ) : hasVisibleExistingDocument && existingDocument ? (
-            <div className="mt-4 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-4">
-              <p className="text-sm font-bold text-emerald-100">
-                Document actuel
-              </p>
-              <p className="mt-2 break-words text-sm text-slate-200">
-                {existingDocument.file_name}
-              </p>
-              <p className="mt-1 text-xs text-slate-400">
-                {formatFileSize(existingDocument.file_size)}
-              </p>
+            ) : null}
+          </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <a
-                  href={`/deadlines/documents/${existingDocument.id}`}
-                  className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-emerald-400/40 hover:bg-emerald-400/10 hover:text-white"
-                >
-                  Voir le document
-                </a>
-                <button
-                  type="button"
-                  onClick={removeExistingDocument}
-                  disabled={disabled}
-                  className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-100 transition hover:border-red-400/40 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Supprimer
-                </button>
+          <div className="mt-4 space-y-3">
+            {selectedFiles.map((file, index) => (
+              <div key={`${file.name}-${file.size}-${file.lastModified}`} className="rounded-2xl border border-blue-400/25 bg-blue-400/10 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-blue-100">Nouveau document prêt</p>
+                    <p className="mt-2 break-words text-sm text-slate-200">{file.name}</p>
+                    <p className="mt-1 text-xs text-slate-400">{formatFileSize(file.size)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeSelectedFile(index)}
+                    disabled={disabled}
+                    className="w-fit rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Retirer
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : existingDocument && shouldRemoveExistingDocument ? (
-            <div className="mt-4 rounded-2xl border border-orange-400/25 bg-orange-400/10 p-4">
-              <p className="text-sm font-bold text-orange-100">
-                Suppression prévue
-              </p>
-              <p className="mt-2 text-sm leading-6 text-orange-100/80">
-                Le document actuel sera supprimé lors de l’enregistrement.
-              </p>
-              <button
-                type="button"
-                onClick={restoreExistingDocument}
-                disabled={disabled}
-                className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-orange-400/40 hover:bg-orange-400/10 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Annuler la suppression
-              </button>
-            </div>
-          ) : (
-            <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-sm font-bold text-slate-200">
-                Aucun document attaché
-              </p>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                {emptyDescription}
-              </p>
-            </div>
-          )}
+            ))}
+
+            {existingDocuments.map((document) => {
+              const isRemoved = removedDocumentIds.has(document.id);
+
+              return (
+                <div
+                  key={document.id}
+                  className={`rounded-2xl border p-4 ${
+                    isRemoved
+                      ? "border-orange-400/25 bg-orange-400/10"
+                      : "border-emerald-400/25 bg-emerald-400/10"
+                  }`}
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className={`text-sm font-bold ${isRemoved ? "text-orange-100" : "text-emerald-100"}`}>
+                        {isRemoved ? "Suppression prévue" : "Document actuel"}
+                      </p>
+                      <p className="mt-2 break-words text-sm text-slate-200">{document.file_name}</p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {getDeadlineDocumentFormatLabel(document.mime_type, document.file_name)} · {formatFileSize(document.file_size)}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {!isRemoved ? (
+                        <a
+                          href={`/deadlines/documents/${document.id}`}
+                          className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-emerald-400/40 hover:bg-emerald-400/10 hover:text-white"
+                        >
+                          Voir
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => toggleRemoveExistingDocument(document.id)}
+                        disabled={disabled}
+                        className={`rounded-xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                          isRemoved
+                            ? "border-white/10 bg-white/[0.04] text-slate-100 hover:border-orange-400/40 hover:bg-orange-400/10"
+                            : "border-red-500/20 bg-red-500/10 text-red-100 hover:border-red-400/40 hover:bg-red-500/20"
+                        }`}
+                      >
+                        {isRemoved ? "Annuler" : "Supprimer"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {existingDocuments.length === 0 && selectedFiles.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-sm font-bold text-slate-200">Aucun document attaché</p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">{emptyDescription}</p>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 

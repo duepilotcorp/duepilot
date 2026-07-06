@@ -22,7 +22,7 @@ import {
   normalizeDeadlineWorkflowStatus,
 } from "@/lib/deadline-access";
 import { formatFileSize, getDeadlineDocumentFormatLabel } from "@/lib/deadline-documents";
-import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
+import { getDeadlineDocumentListByDeadlineId } from "@/lib/deadline-documents-server";
 import { getDeadlineRenewalHistory } from "@/lib/renewal-history";
 import type { DeadlineChecklistItem } from "@/lib/deadline-treatment";
 import { getNextRecurringDate, getRecurrenceShortLabel, normalizeRecurrenceRule } from "@/lib/recurrence";
@@ -344,11 +344,12 @@ export default async function DeadlineDetailPage({
   const claimedByDisplayName = await getAuthUserDisplayName(typedDeadline.claimed_by);
   const completedByDisplayName = await getAuthUserDisplayName(typedDeadline.completed_by);
 
-  const document = await getDeadlineDocumentByDeadlineId({
+  const documents = await getDeadlineDocumentListByDeadlineId({
     supabase,
     userId: user.id,
     deadlineId: typedDeadline.id,
   });
+  const document = documents[0] ?? null;
 
   const { data: checklistItemsData, error: checklistItemsError } = await supabase
     .from("deadline_checklist_items")
@@ -429,8 +430,8 @@ export default async function DeadlineDetailPage({
     },
     {
       label: "Document",
-      value: document ? "1" : "0",
-      helper: document ? `${getDeadlineDocumentFormatLabel(document.mime_type, document.file_name)} associé` : "Aucun document joint",
+      value: documents.length.toString(),
+      helper: documents.length > 0 ? `${documents.length} document${documents.length > 1 ? "s" : ""} associé${documents.length > 1 ? "s" : ""}` : "Aucun document joint",
       className: document
         ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
         : "border-white/10 bg-white/[0.03] text-slate-200",
@@ -476,7 +477,7 @@ export default async function DeadlineDetailPage({
                     id={typedDeadline.id}
                     title={typedDeadline.title}
                     category={typedDeadline.category}
-                    documentFilePath={document?.file_path}
+                    documentFilePaths={documents.map((deadlineDocument) => deadlineDocument.file_path)}
                     redirectTo="/deadlines"
                   />
                 ) : null}
@@ -717,43 +718,54 @@ Fiche échéance
           </div>
 
           <aside className="space-y-6">
-            <section className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
+            <section id="documents" className="scroll-mt-28 rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/20">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-bold text-white">
-                    Document associé
+                    Documents associés
                   </h2>
                   <p className="mt-1 text-sm text-slate-400">
-                    Le justificatif ou fichier lié à cette obligation.
+                    Les justificatifs et fichiers liés à cette obligation.
                   </p>
                 </div>
-                <span className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xl">
-                  {document ? getDeadlineDocumentFormatLabel(document.mime_type, document.file_name) : "Doc"}
+                <span className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-100">
+                  {documents.length} doc{documents.length > 1 ? "s" : ""}
                 </span>
               </div>
 
-              {document ? (
-                <div className="mt-6 rounded-3xl border border-blue-400/20 bg-blue-400/10 p-5">
-                  <p className="break-words text-lg font-bold text-white">
-                    {document.file_name}
-                  </p>
-                  <p className="mt-2 text-sm text-blue-100/80">
-                    {formatFileSize(document.file_size)} · fichier sécurisé
-                  </p>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                    <Link
-                      href={`/deadlines/documents/${document.id}`}
-                      className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
+              {documents.length > 0 ? (
+                <div className="mt-6 space-y-3">
+                  {documents.map((deadlineDocument) => (
+                    <div
+                      key={deadlineDocument.id}
+                      className="rounded-3xl border border-blue-400/20 bg-blue-400/10 p-5"
                     >
-                      Voir le document
-                    </Link>
-                    <a
-                      href={`/api/deadline-documents/${document.id}?download=1`}
-                      className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-                    >
-                      Télécharger
-                    </a>
-                  </div>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="break-words text-base font-bold text-white">
+                            {deadlineDocument.file_name}
+                          </p>
+                          <p className="mt-2 text-sm text-blue-100/80">
+                            {getDeadlineDocumentFormatLabel(deadlineDocument.mime_type, deadlineDocument.file_name)} · {formatFileSize(deadlineDocument.file_size)} · fichier sécurisé
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                        <Link
+                          href={`/deadlines/documents/${deadlineDocument.id}`}
+                          className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
+                        >
+                          Voir
+                        </Link>
+                        <a
+                          href={`/api/deadline-documents/${deadlineDocument.id}?download=1`}
+                          className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                        >
+                          Télécharger
+                        </a>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="mt-6 rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">

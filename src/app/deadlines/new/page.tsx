@@ -25,7 +25,7 @@ import {
   type EditableChecklistItem,
 } from "@/lib/deadline-treatment";
 import { canManageTeamDeadlines, type DeadlineVisibility } from "@/lib/deadline-access";
-import { saveDeadlineDocument } from "@/lib/deadline-document-actions";
+import { saveDeadlineDocuments } from "@/lib/deadline-document-actions";
 import type { DeadlineTemplate } from "@/lib/deadline-templates";
 import { RECURRENCE_SHORT_LABELS, type RecurrenceRule } from "@/lib/recurrence";
 import {
@@ -162,9 +162,7 @@ export default function NewDeadlinePage() {
   const [importanceLevel, setImportanceLevel] =
     useState<DeadlineImportanceLevel>("normal");
   const [canCreateTeamDeadline, setCanCreateTeamDeadline] = useState(false);
-  const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(
-    null
-  );
+  const [selectedDocumentFiles, setSelectedDocumentFiles] = useState<File[]>([]);
   const [enableDocument, setEnableDocument] = useState(false);
   const [enableChecklist, setEnableChecklist] = useState(false);
   const [enableNote, setEnableNote] = useState(false);
@@ -380,12 +378,12 @@ export default function NewDeadlinePage() {
       }
     }
 
-    if (enableDocument && selectedDocumentFile) {
-      const documentResult = await saveDeadlineDocument({
+    if (enableDocument && selectedDocumentFiles.length > 0) {
+      const documentResult = await saveDeadlineDocuments({
         supabase,
         userId: user.id,
         deadlineId: Number(createdDeadline.id),
-        file: selectedDocumentFile,
+        files: selectedDocumentFiles,
       });
 
       if (documentResult.errorMessage) {
@@ -425,18 +423,22 @@ export default function NewDeadlinePage() {
           visibility: safeVisibility,
         },
       },
-      ...(enableDocument && selectedDocumentFile
+      ...(enableDocument && selectedDocumentFiles.length > 0
         ? [
             {
               supabase,
               userId: user.id,
               deadlineId: Number(createdDeadline.id),
               action: "document.added" as const,
-              title: "Document ajouté",
-              description: `${selectedDocumentFile.name} a été associé à l’échéance.`,
+              title: selectedDocumentFiles.length > 1 ? "Documents ajoutés" : "Document ajouté",
+              description:
+                selectedDocumentFiles.length > 1
+                  ? `${selectedDocumentFiles.length} documents ont été associés à l’échéance.`
+                  : `${selectedDocumentFiles[0].name} a été associé à l’échéance.`,
               metadata: {
-                file_name: selectedDocumentFile.name,
-                file_size: selectedDocumentFile.size,
+                files_count: selectedDocumentFiles.length,
+                file_names: selectedDocumentFiles.map((file) => file.name),
+                file_size: selectedDocumentFiles.reduce((total, file) => total + file.size, 0),
               },
             },
           ]
@@ -497,8 +499,8 @@ export default function NewDeadlinePage() {
                 <p>{visibility === "team" ? "Portée : équipe" : "Portée : personnelle"}</p>
                 <p>
                   {enableDocument
-                    ? selectedDocumentFile
-                      ? selectedDocumentFile.name
+                    ? selectedDocumentFiles.length > 0
+                      ? `${selectedDocumentFiles.length} document${selectedDocumentFiles.length > 1 ? "s" : ""} sélectionné${selectedDocumentFiles.length > 1 ? "s" : ""}`
                       : "Document activé sans fichier"
                     : "Document non activé"}
                 </p>
@@ -637,7 +639,7 @@ export default function NewDeadlinePage() {
                 enableDocument={enableDocument}
                 onEnableDocumentChange={(value) => {
                   setEnableDocument(value);
-                  if (!value) setSelectedDocumentFile(null);
+                  if (!value) setSelectedDocumentFiles([]);
                 }}
                 enableChecklist={enableChecklist}
                 onEnableChecklistChange={setEnableChecklist}
@@ -659,10 +661,10 @@ export default function NewDeadlinePage() {
 
             {enableDocument ? (
               <DeadlineDocumentField
-                selectedFile={selectedDocumentFile}
-                onSelectedFileChange={setSelectedDocumentFile}
+                selectedFiles={selectedDocumentFiles}
+                onSelectedFilesChange={setSelectedDocumentFiles}
                 disabled={isLoading}
-                stepLabel="Document"
+                stepLabel="Documents"
               />
             ) : null}
 

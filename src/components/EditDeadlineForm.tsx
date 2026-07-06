@@ -24,8 +24,8 @@ import NotificationDaysSelector, {
   normalizeNotificationDays,
 } from "@/components/NotificationDaysSelector";
 import {
-  deleteDeadlineDocument,
-  saveDeadlineDocument,
+  deleteDeadlineDocuments,
+  saveDeadlineDocuments,
 } from "@/lib/deadline-document-actions";
 import type { DeadlineDocument } from "@/lib/deadline-documents";
 import { normalizeRecurrenceRule, RECURRENCE_SHORT_LABELS, type RecurrenceRule } from "@/lib/recurrence";
@@ -66,7 +66,7 @@ type Deadline = {
 
 type EditDeadlineFormProps = {
   deadline: Deadline;
-  document?: DeadlineDocument | null;
+  documents?: DeadlineDocument[];
   checklistItems?: DeadlineChecklistItem[];
   returnHref?: string;
 };
@@ -174,7 +174,7 @@ function getReminderPreview(days: number[]) {
 
 export default function EditDeadlineForm({
   deadline,
-  document = null,
+  documents = [],
   checklistItems: initialChecklistItems = [],
   returnHref = "/deadlines",
 }: EditDeadlineFormProps) {
@@ -215,11 +215,9 @@ export default function EditDeadlineForm({
     useState<DeadlineImportanceLevel>(
       normalizeDeadlineImportance(deadline.importance_level)
     );
-  const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(
-    null
-  );
-  const [shouldRemoveDocument, setShouldRemoveDocument] = useState(false);
-  const [enableDocument, setEnableDocument] = useState(Boolean(document));
+  const [selectedDocumentFiles, setSelectedDocumentFiles] = useState<File[]>([]);
+  const [documentIdsToRemove, setDocumentIdsToRemove] = useState<number[]>([]);
+  const [enableDocument, setEnableDocument] = useState(documents.length > 0);
   const [enableChecklist, setEnableChecklist] = useState(initialChecklistItems.length > 0);
   const [enableNote, setEnableNote] = useState(Boolean(deadline.treatment_note?.trim()));
   const [enableUsefulLink, setEnableUsefulLink] = useState(Boolean(deadline.useful_link_url?.trim()));
@@ -286,7 +284,7 @@ export default function EditDeadlineForm({
   const normalizedCurrentUsefulLinkLabel = enableUsefulLink ? normalizeUsefulLinkLabel(usefulLinkLabel) : "";
   const normalizedInitialUsefulLinkLabel = normalizeUsefulLinkLabel(deadline.useful_link_label);
 
-  const hasDocumentChanges = Boolean(selectedDocumentFile) || shouldRemoveDocument || enableDocument !== Boolean(document);
+  const hasDocumentChanges = selectedDocumentFiles.length > 0 || documentIdsToRemove.length > 0 || enableDocument !== (documents.length > 0);
   const hasTreatmentChanges =
     normalizedCurrentTreatmentNote !== normalizedInitialTreatmentNote ||
     normalizedCurrentUsefulLinkUrl !== normalizedInitialUsefulLinkUrl ||
@@ -392,13 +390,12 @@ export default function EditDeadlineForm({
       return;
     }
 
-    if (enableDocument && selectedDocumentFile) {
-      const documentResult = await saveDeadlineDocument({
+    if (enableDocument && selectedDocumentFiles.length > 0) {
+      const documentResult = await saveDeadlineDocuments({
         supabase,
         userId: user.id,
         deadlineId: deadline.id,
-        file: selectedDocumentFile,
-        previousFilePath: document?.file_path,
+        files: selectedDocumentFiles,
       });
 
       if (documentResult.errorMessage) {
@@ -406,12 +403,21 @@ export default function EditDeadlineForm({
         setIsLoading(false);
         return;
       }
-    } else if ((!enableDocument || shouldRemoveDocument) && document) {
-      const documentResult = await deleteDeadlineDocument({
+    }
+
+    const documentsToRemove = !enableDocument
+      ? documents
+      : documents.filter((document) => documentIdsToRemove.includes(document.id));
+
+    if (documentsToRemove.length > 0) {
+      const documentResult = await deleteDeadlineDocuments({
         supabase,
         userId: user.id,
         deadlineId: deadline.id,
-        filePath: document.file_path,
+        documents: documentsToRemove.map((document) => ({
+          id: document.id,
+          file_path: document.file_path,
+        })),
       });
 
       if (documentResult.errorMessage) {
@@ -589,35 +595,43 @@ export default function EditDeadlineForm({
       });
     }
 
-    if (enableDocument && selectedDocumentFile) {
-      const isReplacement = Boolean(document);
-
+    if (enableDocument && selectedDocumentFiles.length > 0) {
       activityLogs.push({
         supabase,
         userId: user.id,
         deadlineId: deadline.id,
-        action: isReplacement ? "document.replaced" : "document.added",
-        title: isReplacement ? "Document remplacé" : "Document ajouté",
-        description: isReplacement
-          ? `${document?.file_name ?? "Le document précédent"} a été remplacé par ${selectedDocumentFile.name}.`
-          : `${selectedDocumentFile.name} a été associé à l’échéance.`,
+        action: "document.added",
+        title: selectedDocumentFiles.length > 1 ? "Documents ajoutés" : "Document ajouté",
+        description:
+          selectedDocumentFiles.length > 1
+            ? `${selectedDocumentFiles.length} documents ont été ajoutés à l’échéance.`
+            : `${selectedDocumentFiles[0].name} a été associé à l’échéance.`,
         metadata: {
-          previous_file_name: document?.file_name ?? null,
-          new_file_name: selectedDocumentFile.name,
-          new_file_size: selectedDocumentFile.size,
+          files_count: selectedDocumentFiles.length,
+          file_names: selectedDocumentFiles.map((file) => file.name),
+          file_size: selectedDocumentFiles.reduce((total, file) => total + file.size, 0),
         },
       });
-    } else if ((!enableDocument || shouldRemoveDocument) && document) {
+    }
+
+    const removedDocumentsForLog = !enableDocument
+      ? documents
+      : documents.filter((document) => documentIdsToRemove.includes(document.id));
+
+    if (removedDocumentsForLog.length > 0) {
       activityLogs.push({
         supabase,
         userId: user.id,
         deadlineId: deadline.id,
         action: "document.removed",
-        title: "Document supprimé",
-        description: `${document.file_name} a été retiré de l’échéance.`,
+        title: removedDocumentsForLog.length > 1 ? "Documents supprimés" : "Document supprimé",
+        description:
+          removedDocumentsForLog.length > 1
+            ? `${removedDocumentsForLog.length} documents ont été retirés de l’échéance.`
+            : `${removedDocumentsForLog[0].file_name} a été retiré de l’échéance.`,
         metadata: {
-          file_name: document.file_name,
-          file_size: document.file_size,
+          files_count: removedDocumentsForLog.length,
+          file_names: removedDocumentsForLog.map((document) => document.file_name),
         },
       });
     }
@@ -729,10 +743,10 @@ export default function EditDeadlineForm({
             onEnableDocumentChange={(value) => {
               setEnableDocument(value);
               if (!value) {
-                setSelectedDocumentFile(null);
-                setShouldRemoveDocument(Boolean(document));
+                setSelectedDocumentFiles([]);
+                setDocumentIdsToRemove(documents.map((document) => document.id));
               } else {
-                setShouldRemoveDocument(false);
+                setDocumentIdsToRemove([]);
               }
             }}
             enableChecklist={enableChecklist}
@@ -755,13 +769,13 @@ export default function EditDeadlineForm({
 
         {enableDocument ? (
           <DeadlineDocumentField
-            selectedFile={selectedDocumentFile}
-            onSelectedFileChange={setSelectedDocumentFile}
-            existingDocument={document}
-            shouldRemoveExistingDocument={shouldRemoveDocument}
-            onShouldRemoveExistingDocumentChange={setShouldRemoveDocument}
+            selectedFiles={selectedDocumentFiles}
+            onSelectedFilesChange={setSelectedDocumentFiles}
+            existingDocuments={documents}
+            documentIdsToRemove={documentIdsToRemove}
+            onDocumentIdsToRemoveChange={setDocumentIdsToRemove}
             disabled={isLoading}
-            stepLabel="Document"
+            stepLabel="Documents"
           />
         ) : null}
 
@@ -888,11 +902,13 @@ export default function EditDeadlineForm({
               </p>
               <p className="mt-1 break-words text-slate-300">
                 {enableDocument
-                  ? selectedDocumentFile
-                    ? selectedDocumentFile.name
-                    : shouldRemoveDocument
-                      ? "Suppression prévue"
-                      : document?.file_name ?? "Document activé sans fichier"
+                  ? documentIdsToRemove.length > 0
+                    ? `${documentIdsToRemove.length} document${documentIdsToRemove.length > 1 ? "s" : ""} à supprimer`
+                    : selectedDocumentFiles.length > 0
+                      ? `${selectedDocumentFiles.length} nouveau${selectedDocumentFiles.length > 1 ? "x" : ""} document${selectedDocumentFiles.length > 1 ? "s" : ""}`
+                      : documents.length > 0
+                        ? `${documents.length} document${documents.length > 1 ? "s" : ""} associé${documents.length > 1 ? "s" : ""}`
+                        : "Document activé sans fichier"
                   : "Document désactivé"}
               </p>
             </div>

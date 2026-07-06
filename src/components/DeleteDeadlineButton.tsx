@@ -11,6 +11,7 @@ type DeleteDeadlineButtonProps = {
   title?: string;
   category?: string | null;
   documentFilePath?: string | null;
+  documentFilePaths?: Array<string | null>;
   redirectTo?: string;
 };
 
@@ -19,6 +20,7 @@ export default function DeleteDeadlineButton({
   title,
   category,
   documentFilePath,
+  documentFilePaths = [],
   redirectTo,
 }: DeleteDeadlineButtonProps) {
   const router = useRouter();
@@ -45,6 +47,15 @@ export default function DeleteDeadlineButton({
       return;
     }
 
+    const { data: documentRows } = await supabase
+      .from("deadline_documents")
+      .select("file_path")
+      .eq("deadline_id", id);
+
+    const databaseDocumentFilePaths = ((documentRows ?? []) as Array<{ file_path: string | null }>)
+      .map((documentRow) => documentRow.file_path)
+      .filter((filePath): filePath is string => Boolean(filePath));
+
     await createActivityLog({
       supabase,
       userId: user.id,
@@ -57,7 +68,8 @@ export default function DeleteDeadlineButton({
       metadata: {
         title: title ?? null,
         category: category ?? null,
-        had_document: Boolean(documentFilePath),
+        had_document: Boolean(documentFilePath) || documentFilePaths.some(Boolean),
+        document_count: databaseDocumentFilePaths.length || documentFilePaths.filter(Boolean).length || (documentFilePath ? 1 : 0),
       },
     });
 
@@ -72,10 +84,14 @@ export default function DeleteDeadlineButton({
       return;
     }
 
-    if (documentFilePath) {
+    const filePathsToRemove = Array.from(
+      new Set([documentFilePath, ...documentFilePaths, ...databaseDocumentFilePaths].filter((filePath): filePath is string => Boolean(filePath)))
+    );
+
+    if (filePathsToRemove.length > 0) {
       const { error: storageError } = await supabase.storage
         .from(DEADLINE_DOCUMENTS_BUCKET)
-        .remove([documentFilePath]);
+        .remove(filePathsToRemove);
 
       if (storageError) {
         console.warn(storageError);

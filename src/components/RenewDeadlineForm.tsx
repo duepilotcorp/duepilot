@@ -511,14 +511,14 @@ Clôturer cette échéance et planifier la suivante
               </section>
 
               <DeadlineDocumentField
-                selectedFile={selectedDocumentFile}
-                onSelectedFileChange={setSelectedDocumentFile}
-                existingDocument={document}
-                shouldRemoveExistingDocument={shouldRemoveDocument}
-                onShouldRemoveExistingDocumentChange={setShouldRemoveDocument}
+                selectedFiles={selectedDocumentFile ? [selectedDocumentFile] : []}
+                onSelectedFilesChange={(files) => setSelectedDocumentFile(files[0] ?? null)}
+                existingDocuments={document ? [document] : []}
+                documentIdsToRemove={shouldRemoveDocument && document ? [document.id] : []}
+                onDocumentIdsToRemoveChange={(documentIds) => setShouldRemoveDocument(Boolean(document && documentIds.includes(document.id)))}
                 disabled={isLoading}
                 stepLabel="Optionnel"
-                description="Conservez le document actuel ou ajoutez le nouveau justificatif lié au renouvellement."
+                description="Conservez les documents actuels ou ajoutez le nouveau justificatif lié au renouvellement."
                 emptyDescription="Vous pouvez renouveler cette échéance sans document et ajouter le justificatif plus tard."
               />
 

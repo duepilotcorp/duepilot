@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import EditDeadlineForm from "@/components/EditDeadlineForm";
 import { buildDeadlineAccessOrFilter, canEditDeadline, normalizeDeadlineVisibility } from "@/lib/deadline-access";
-import { getDeadlineDocumentByDeadlineId } from "@/lib/deadline-documents-server";
+import { getDeadlineDocumentListByDeadlineId } from "@/lib/deadline-documents-server";
 import type { DeadlineChecklistItem } from "@/lib/deadline-treatment";
 import { ensureUserOrganization } from "@/lib/organizations";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
@@ -146,7 +146,7 @@ export default async function EditDeadlinePage({
     redirect(`/deadlines/${editableDeadline.id}`);
   }
 
-  const deadlineDocument = await getDeadlineDocumentByDeadlineId({
+  const deadlineDocuments = await getDeadlineDocumentListByDeadlineId({
     supabase,
     userId: user.id,
     deadlineId: editableDeadline.id,
@@ -226,8 +226,8 @@ export default async function EditDeadlinePage({
                 <p>Récurrence : {getRecurrenceShortLabel(editableDeadline.recurrence_rule)}</p>
                 <p>Importance : {getDeadlineImportanceLabel(editableDeadline.importance_level)}</p>
                 <p className="break-all leading-6">
-                  {deadlineDocument
-                    ? `Document : ${deadlineDocument.file_name}`
+                  {deadlineDocuments.length > 0
+                    ? `${deadlineDocuments.length} document${deadlineDocuments.length > 1 ? "s" : ""} attaché${deadlineDocuments.length > 1 ? "s" : ""}`
                     : "Aucun document attaché"}
                 </p>
               </div>
@@ -237,7 +237,7 @@ export default async function EditDeadlinePage({
 
         <EditDeadlineForm
           deadline={editableDeadline}
-          document={deadlineDocument}
+          documents={deadlineDocuments}
           checklistItems={checklistItems}
           returnHref={returnHref}
         />

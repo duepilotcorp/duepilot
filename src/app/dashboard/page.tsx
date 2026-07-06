@@ -856,10 +856,10 @@ Vue d’ensemble
                     </Link>
                     {nextCriticalDeadline.document ? (
                       <Link
-                        href={`/deadlines/documents/${nextCriticalDeadline.document.id}`}
+                        href={`/deadlines/${nextCriticalDeadline.id}#documents`}
                         className="mt-3 inline-flex w-full justify-center rounded-xl border border-blue-400/20 bg-blue-400/10 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white"
                       >
-                        Voir le document joint
+                        Voir les documents
                       </Link>
                     ) : null}
                   </div>
