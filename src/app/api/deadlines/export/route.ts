@@ -11,6 +11,10 @@ import { formatFileSize } from "@/lib/deadline-documents";
 import { ensureUserOrganization } from "@/lib/organizations";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import { getDeadlineImportanceLabel } from "@/lib/deadline-importance";
+import {
+  getDeadlineCategoryDisplay,
+  getDeadlineMainCategoryKey,
+} from "@/lib/deadline-categories";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +23,8 @@ type Deadline = {
   id: number;
   title: string;
   category: string | null;
+  category_key?: string | null;
+  custom_category_label?: string | null;
   due_date: string;
   notification_days: number[] | null;
   recurrence_rule: string | null;
@@ -32,6 +38,7 @@ type Deadline = {
 
 type EnrichedDeadline = Deadline & {
   categoryLabel: string;
+  categoryKey: string;
   daysUntilDeadline: number;
   formattedDate: string;
   readableStatus: string;
@@ -311,7 +318,7 @@ export async function GET(request: NextRequest) {
 
   const { data: deadlines, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, notification_days, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
+    .select("id, title, category, category_key, custom_category_label, due_date, notification_days, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
     .or(
       buildDeadlineAccessOrFilter({
         userId: user.id,
@@ -351,7 +358,12 @@ export async function GET(request: NextRequest) {
       workflowStatus,
       visibilityLabel: DEADLINE_VISIBILITY_LABELS[visibility],
       workflowLabel: getDeadlineWorkflowLabel({ status: workflowStatus, visibility }),
-      categoryLabel: deadline.category?.trim() || "Sans catégorie",
+      categoryLabel: getDeadlineCategoryDisplay({
+        category: deadline.category,
+        categoryKey: deadline.category_key,
+        customCategoryLabel: deadline.custom_category_label,
+      }),
+      categoryKey: getDeadlineMainCategoryKey({ category: deadline.category, categoryKey: deadline.category_key }),
       daysUntilDeadline,
       formattedDate: formatDeadlineDate(deadline.due_date),
       readableStatus: getReadableStatus(daysUntilDeadline),
@@ -385,7 +397,7 @@ export async function GET(request: NextRequest) {
         ? searchableContent.includes(normalizedSearchQuery)
         : true;
       const matchesCategory =
-        categoryFilter === "all" || deadline.categoryLabel === categoryFilter;
+        categoryFilter === "all" || deadline.categoryKey === categoryFilter;
       const deadlineDate = parseLocalDate(deadline.due_date);
       const matchesYear = yearFilter
         ? String(deadlineDate.getFullYear()) === yearFilter

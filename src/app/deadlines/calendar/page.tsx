@@ -25,6 +25,10 @@ import { ensureUserOrganization } from "@/lib/organizations";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import { getUserDisplayName } from "@/lib/user-display";
 import { isUserAdmin } from "@/lib/user-roles";
+import {
+  getDeadlineCategoryDisplay,
+  getDeadlineMainCategoryKey,
+} from "@/lib/deadline-categories";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +37,8 @@ type Deadline = {
   id: number;
   title: string;
   category: string | null;
+  category_key?: string | null;
+  custom_category_label?: string | null;
   due_date: string;
   recurrence_rule: string | null;
   importance_level: string | null;
@@ -45,6 +51,7 @@ type Deadline = {
 
 type CalendarDeadline = Deadline & {
   categoryLabel: string;
+  categoryKey: string;
   daysUntilDeadline: number;
   formattedDate: string;
   compactDate: string;
@@ -410,7 +417,7 @@ export default async function ComplianceCalendarPage({
 
   const { data: deadlines, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
+    .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
     .or(
       buildDeadlineAccessOrFilter({
         userId: user.id,
@@ -460,7 +467,12 @@ export default async function ComplianceCalendarPage({
       importanceLabel: getDeadlineImportanceLabel(importanceLevel),
       importanceClassName: getDeadlineImportanceBadgeClassName(importanceLevel),
       importanceDotClassName: getDeadlineImportanceDotClassName(importanceLevel),
-      categoryLabel: deadline.category?.trim() || "Sans catégorie",
+      categoryLabel: getDeadlineCategoryDisplay({
+        category: deadline.category,
+        categoryKey: deadline.category_key,
+        customCategoryLabel: deadline.custom_category_label,
+      }),
+      categoryKey: getDeadlineMainCategoryKey({ category: deadline.category, categoryKey: deadline.category_key }),
       daysUntilDeadline: getDaysUntilDeadline(deadline.due_date, today),
       formattedDate: formatDeadlineDate(deadline.due_date),
       compactDate: formatCompactDate(deadline.due_date),

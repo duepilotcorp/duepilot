@@ -15,6 +15,9 @@ import { getDeadlineRenewalHistory } from "@/lib/renewal-history";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import { getDeadlineImportanceLabel } from "@/lib/deadline-importance";
 import { ensureUserOrganization } from "@/lib/organizations";
+import {
+  getDeadlineCategoryDisplay,
+} from "@/lib/deadline-categories";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +32,8 @@ type Deadline = {
   id: number;
   title: string;
   category: string | null;
+  category_key?: string | null;
+  custom_category_label?: string | null;
   due_date: string;
   notification_days: number[] | null;
   recurrence_rule: string | null;
@@ -180,7 +185,7 @@ export default async function DeadlineReportPage({
 
   const { data: deadline, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, notification_days, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
+    .select("id, title, category, category_key, custom_category_label, due_date, notification_days, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
     .eq("id", deadlineId)
     .or(
       buildDeadlineAccessOrFilter({
@@ -247,7 +252,11 @@ export default async function DeadlineReportPage({
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date());
-  const categoryLabel = typedDeadline.category?.trim() || "Sans catégorie";
+  const categoryLabel = getDeadlineCategoryDisplay({
+    category: typedDeadline.category,
+    categoryKey: typedDeadline.category_key,
+    customCategoryLabel: typedDeadline.custom_category_label,
+  });
   const recurrenceLabel = getRecurrenceShortLabel(typedDeadline.recurrence_rule);
   const importanceLabel = getDeadlineImportanceLabel(typedDeadline.importance_level);
   const logs = notificationLogsError ? [] : notificationLogs ?? [];

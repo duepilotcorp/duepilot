@@ -34,6 +34,9 @@ import {
 } from "@/lib/deadline-importance";
 import { ensureUserOrganization } from "@/lib/organizations";
 import { getAuthUserDisplayName } from "@/lib/user-display";
+import {
+  getDeadlineCategoryDisplay,
+} from "@/lib/deadline-categories";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +51,8 @@ type Deadline = {
   id: number;
   title: string;
   category: string | null;
+  category_key?: string | null;
+  custom_category_label?: string | null;
   due_date: string;
   notification_days: number[] | null;
   recurrence_rule: string | null;
@@ -255,7 +260,7 @@ export default async function DeadlineDetailPage({
 
   const { data: deadline, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, notification_days, recurrence_rule, importance_level, treatment_note, useful_link_url, useful_link_label, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, claimed_at, completed_by, completed_at, archived_by, archived_at")
+    .select("id, title, category, category_key, custom_category_label, due_date, notification_days, recurrence_rule, importance_level, treatment_note, useful_link_url, useful_link_label, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, claimed_at, completed_by, completed_at, archived_by, archived_at")
     .eq("id", deadlineId)
     .or(
       buildDeadlineAccessOrFilter({
@@ -388,7 +393,11 @@ export default async function DeadlineDetailPage({
 
   const formattedDueDate = formatDeadlineDate(typedDeadline.due_date);
   const formattedCreatedAt = formatDateTime(typedDeadline.created_at);
-  const categoryLabel = typedDeadline.category?.trim() || "Sans catégorie";
+  const categoryLabel = getDeadlineCategoryDisplay({
+    category: typedDeadline.category,
+    categoryKey: typedDeadline.category_key,
+    customCategoryLabel: typedDeadline.custom_category_label,
+  });
   const recurrenceRule = normalizeRecurrenceRule(typedDeadline.recurrence_rule);
   const recurrenceLabel = getRecurrenceShortLabel(recurrenceRule);
   const nextRecurringDate = getNextRecurringDate(typedDeadline.due_date, recurrenceRule);
@@ -903,7 +912,7 @@ Fiche échéance
             deadline={{
             id: typedDeadline.id,
             title: typedDeadline.title,
-            category: typedDeadline.category,
+            category: categoryLabel,
             due_date: typedDeadline.due_date,
             notification_days: typedDeadline.notification_days,
             recurrence_rule: typedDeadline.recurrence_rule,

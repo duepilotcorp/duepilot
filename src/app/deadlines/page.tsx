@@ -27,6 +27,12 @@ import {
 } from "@/lib/deadline-importance";
 import { isUserAdmin } from "@/lib/user-roles";
 import { getUserDisplayName } from "@/lib/user-display";
+import {
+  DEADLINE_CATEGORY_OPTIONS,
+  getDeadlineCategoryDisplay,
+  getDeadlineCategoryLabel,
+  getDeadlineMainCategoryKey,
+} from "@/lib/deadline-categories";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +41,8 @@ type Deadline = {
   id: number;
   title: string;
   category: string | null;
+  category_key?: string | null;
+  custom_category_label?: string | null;
   due_date: string;
   recurrence_rule: string | null;
   importance_level: string | null;
@@ -49,6 +57,7 @@ type Deadline = {
 
 type EnrichedDeadline = Deadline & {
   categoryLabel: string;
+  categoryKey: string;
   daysUntilDeadline: number;
   formattedDate: string;
   readableStatus: string;
@@ -377,7 +386,7 @@ function buildFilterSummary({
         "Statut filtré"
     );
   }
-  if (categoryFilter !== "all") activeFilters.push(categoryFilter);
+  if (categoryFilter !== "all") activeFilters.push(getDeadlineCategoryLabel(categoryFilter));
   if (yearFilter) activeFilters.push(`Année : ${yearFilter}`);
   if (monthFilter) {
     activeFilters.push(
@@ -430,7 +439,7 @@ export default async function DeadlinesPage({
 
   const { data: deadlines, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, completed_by")
+    .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, completed_by")
     .or(
       buildDeadlineAccessOrFilter({
         userId: user.id,
@@ -463,7 +472,11 @@ export default async function DeadlinesPage({
 
   const enrichedDeadlines: EnrichedDeadline[] = deadlineList.map((deadline) => {
     const daysUntilDeadline = getDaysUntilDeadline(deadline.due_date, today);
-    const categoryLabel = deadline.category?.trim() || "Sans catégorie";
+    const categoryLabel = getDeadlineCategoryDisplay({
+        category: deadline.category,
+        categoryKey: deadline.category_key,
+        customCategoryLabel: deadline.custom_category_label,
+      });
     const visibility = normalizeDeadlineVisibility(deadline.visibility);
     const workflowStatus = normalizeDeadlineWorkflowStatus(deadline.workflow_status);
     const importanceLevel = normalizeDeadlineImportance(deadline.importance_level);
@@ -482,6 +495,7 @@ export default async function DeadlinesPage({
       importanceClassName: getDeadlineImportanceBadgeClassName(importanceLevel),
       importanceDotClassName: getDeadlineImportanceDotClassName(importanceLevel),
       categoryLabel,
+      categoryKey: getDeadlineMainCategoryKey({ category: deadline.category, categoryKey: deadline.category_key }),
       daysUntilDeadline,
       formattedDate: formatDeadlineDate(deadline.due_date),
       readableStatus: getReadableStatus(daysUntilDeadline),
@@ -518,13 +532,12 @@ export default async function DeadlinesPage({
     (deadline) => deadline.daysUntilDeadline > 30
   ).length;
 
-  const categories = Array.from(
-    new Set(activeDeadlines.map((deadline) => deadline.categoryLabel))
-  ).sort((firstCategory, secondCategory) =>
-    firstCategory.localeCompare(secondCategory, "fr", { sensitivity: "base" })
+  const usedCategoryKeys = new Set(activeDeadlines.map((deadline) => deadline.categoryKey));
+  const categories = DEADLINE_CATEGORY_OPTIONS.filter((category) =>
+    usedCategoryKeys.has(category.key)
   );
 
-  const safeCategoryFilter = categories.includes(categoryFilter)
+  const safeCategoryFilter = categories.some((category) => category.key === categoryFilter)
     ? categoryFilter
     : "all";
 
@@ -547,7 +560,7 @@ export default async function DeadlinesPage({
         ? searchableContent.includes(normalizedSearchQuery)
         : true;
       const matchesCategory =
-        safeCategoryFilter === "all" || deadline.categoryLabel === safeCategoryFilter;
+        safeCategoryFilter === "all" || deadline.categoryKey === safeCategoryFilter;
       const deadlineDate = parseLocalDate(deadline.due_date);
       const matchesYear = yearFilter
         ? String(deadlineDate.getFullYear()) === yearFilter
@@ -844,8 +857,8 @@ export default async function DeadlinesPage({
                   action="/deadlines"
                   className="border-t border-white/10 p-5 sm:p-6"
                 >
-                <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr_0.7fr_0.75fr_0.75fr_auto] xl:items-end">
-                  <label className="block">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <label className="block min-w-0">
                     <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Recherche
                     </span>
@@ -854,18 +867,18 @@ export default async function DeadlinesPage({
                       name="q"
                       defaultValue={searchQuery}
                       placeholder="Nom, catégorie, statut…"
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-blue-400/50 focus:bg-white/[0.07]"
+                      className="mt-2 w-full min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-blue-400/50 focus:bg-white/[0.07]"
                     />
                   </label>
 
-                  <label className="block">
+                  <label className="block min-w-0">
                     <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Portée
                     </span>
                     <select
                       name="scope"
                       defaultValue={scopeFilter}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/50"
+                      className="mt-2 w-full min-w-0 truncate rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 pr-10 text-sm text-white outline-none transition focus:border-blue-400/50"
                     >
                       {SCOPE_FILTERS.map((filter) => (
                         <option key={filter.value} value={filter.value}>
@@ -875,14 +888,14 @@ export default async function DeadlinesPage({
                     </select>
                   </label>
 
-                  <label className="block">
+                  <label className="block min-w-0">
                     <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Statut
                     </span>
                     <select
                       name="status"
                       defaultValue={statusFilter}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/50"
+                      className="mt-2 w-full min-w-0 truncate rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 pr-10 text-sm text-white outline-none transition focus:border-blue-400/50"
                     >
                       {STATUS_FILTERS.map((filter) => (
                         <option key={filter.value} value={filter.value}>
@@ -892,25 +905,25 @@ export default async function DeadlinesPage({
                     </select>
                   </label>
 
-                  <label className="block">
+                  <label className="block min-w-0">
                     <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Catégorie
                     </span>
                     <select
                       name="category"
                       defaultValue={safeCategoryFilter}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/50"
+                      className="mt-2 w-full min-w-0 truncate rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 pr-10 text-sm text-white outline-none transition focus:border-blue-400/50"
                     >
                       <option value="all">Toutes les catégories</option>
                       {categories.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
+                        <option key={category.key} value={category.key}>
+                          {category.label}
                         </option>
                       ))}
                     </select>
                   </label>
 
-                  <label className="block">
+                  <label className="block min-w-0">
                     <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Année
                     </span>
@@ -920,18 +933,18 @@ export default async function DeadlinesPage({
                       inputMode="numeric"
                       placeholder="Ex : 2026"
                       maxLength={4}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/50"
+                      className="mt-2 w-full min-w-0 rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/50"
                     />
                   </label>
 
-                  <label className="block">
+                  <label className="block min-w-0">
                     <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Mois
                     </span>
                     <select
                       name="month"
                       defaultValue={monthFilter}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/50"
+                      className="mt-2 w-full min-w-0 truncate rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 pr-10 text-sm text-white outline-none transition focus:border-blue-400/50"
                     >
                       {MONTH_FILTERS.map((month) => (
                         <option key={month.value || "all"} value={month.value}>
@@ -941,14 +954,14 @@ export default async function DeadlinesPage({
                     </select>
                   </label>
 
-                  <label className="block">
+                  <label className="block min-w-0">
                     <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Tri
                     </span>
                     <select
                       name="sort"
                       defaultValue={sortOption}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/50"
+                      className="mt-2 w-full min-w-0 truncate rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 pr-10 text-sm text-white outline-none transition focus:border-blue-400/50"
                     >
                       {SORT_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -958,17 +971,17 @@ export default async function DeadlinesPage({
                     </select>
                   </label>
 
-                  <div className="flex gap-2">
+                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row md:col-span-2 xl:col-span-3 xl:justify-end">
                     <button
                       type="submit"
-                      className="flex-1 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 xl:flex-none"
+                      className="rounded-2xl bg-blue-500 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-400 sm:min-w-[130px]"
                     >
                       Appliquer
                     </button>
                     {hasActiveFilters ? (
                       <Link
                         href="/deadlines"
-                        className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                        className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-center text-sm font-semibold text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white sm:min-w-[110px]"
                       >
                         Reset
                       </Link>
@@ -1022,8 +1035,8 @@ export default async function DeadlinesPage({
                 </div>
               ) : (
                 <>
-                  <div className="hidden overflow-x-auto lg:block">
-                    <table className="w-full min-w-[900px]">
+                  <div className="hidden overflow-x-auto xl:block">
+                    <table className="w-full min-w-[980px]">
                       <thead>
                         <tr className="border-b border-white/10 text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                           <th className="px-6 py-4">Échéance</th>
@@ -1080,7 +1093,7 @@ export default async function DeadlinesPage({
                             </td>
 
                             <td className="px-6 py-5">
-                              <span className="inline-flex whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm font-medium text-slate-200">
+                              <span className="inline-flex max-w-[220px] truncate whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm font-medium text-slate-200">
                                 {deadline.categoryLabel}
                               </span>
                             </td>
@@ -1132,7 +1145,7 @@ export default async function DeadlinesPage({
                     </table>
                   </div>
 
-                  <div className="space-y-3 p-4 lg:hidden">
+                  <div className="space-y-3 p-4 xl:hidden">
                     {filteredDeadlines.map((deadline) => (
                       <article
                         key={deadline.id}

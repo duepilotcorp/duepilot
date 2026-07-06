@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import CollapsibleFormSection from "@/components/CollapsibleFormSection";
 import DateField from "@/components/DateField";
 import DeadlineDocumentField from "@/components/DeadlineDocumentField";
+import DeadlineCategoryField from "@/components/DeadlineCategoryField";
 import DeadlineTemplatePicker from "@/components/DeadlineTemplatePicker";
 import DeadlineImportanceSelector from "@/components/DeadlineImportanceSelector";
 import DeadlineTreatmentOptions from "@/components/DeadlineTreatmentOptions";
@@ -27,25 +28,20 @@ import { canManageTeamDeadlines, type DeadlineVisibility } from "@/lib/deadline-
 import { saveDeadlineDocument } from "@/lib/deadline-document-actions";
 import type { DeadlineTemplate } from "@/lib/deadline-templates";
 import { RECURRENCE_SHORT_LABELS, type RecurrenceRule } from "@/lib/recurrence";
+import {
+  DEFAULT_DEADLINE_CATEGORY_KEY,
+  buildStoredDeadlineCategory,
+  getDeadlineCategoryDisplay,
+  inferDeadlineCategoryKey,
+  normalizeCustomCategoryLabel,
+  normalizeDeadlineCategoryKey,
+  type DeadlineCategoryKey,
+} from "@/lib/deadline-categories";
 import { createClient } from "@/lib/supabase/client";
 import {
   DEADLINE_IMPORTANCE_LABELS,
   type DeadlineImportanceLevel,
 } from "@/lib/deadline-importance";
-
-const CATEGORY_SUGGESTIONS = [
-  "Assurance",
-  "Certification",
-  "Contrôle réglementaire",
-  "Habilitation",
-  "Contrat",
-  "Vérification périodique",
-  "Entretien obligatoire",
-  "Document administratif",
-  "Qualification professionnelle",
-  "Sécurité",
-  "Contrôle technique",
-];
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 
@@ -155,7 +151,8 @@ export default function NewDeadlinePage() {
   const supabase = createClient();
 
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("");
+  const [categoryKey, setCategoryKey] = useState<DeadlineCategoryKey>(DEFAULT_DEADLINE_CATEGORY_KEY);
+  const [customCategoryLabel, setCustomCategoryLabel] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [notificationDays, setNotificationDays] = useState<number[]>(
     DEFAULT_NOTIFICATION_DAYS
@@ -191,7 +188,19 @@ export default function NewDeadlinePage() {
   );
   const dateInsight = useMemo(() => getDateInsight(dueDate), [dueDate]);
   const deadlinePreviewTitle = title.trim() || "Nouvelle échéance";
-  const deadlinePreviewCategory = category.trim() || "Catégorie non définie";
+  const normalizedCustomCategoryLabel = useMemo(
+    () => normalizeCustomCategoryLabel(customCategoryLabel),
+    [customCategoryLabel]
+  );
+  const deadlineCategoryLabel = useMemo(
+    () =>
+      getDeadlineCategoryDisplay({
+        categoryKey,
+        customCategoryLabel: normalizedCustomCategoryLabel,
+      }),
+    [categoryKey, normalizedCustomCategoryLabel]
+  );
+  const deadlinePreviewCategory = deadlineCategoryLabel;
 
 
   useEffect(() => {
@@ -228,7 +237,8 @@ export default function NewDeadlinePage() {
     if (isLoading) return;
 
     setTitle(template.title);
-    setCategory(template.category);
+    setCategoryKey(inferDeadlineCategoryKey(template.category, template.title));
+    setCustomCategoryLabel("");
     setNotificationDays(template.recommendedNotificationDays);
     setSelectedTemplateId(template.id);
     setAppliedTemplateName(template.title);
@@ -242,7 +252,13 @@ export default function NewDeadlinePage() {
 
     setErrorMessage("");
 
-    if (!title.trim() || !category.trim() || !dueDate) {
+    const safeCategoryKey = normalizeDeadlineCategoryKey(categoryKey);
+    const storedCategory = buildStoredDeadlineCategory({
+      categoryKey: safeCategoryKey,
+      customCategoryLabel: normalizedCustomCategoryLabel,
+    });
+
+    if (!title.trim() || !safeCategoryKey || !dueDate) {
       setErrorMessage("Complétez le nom, la catégorie et la date d’échéance.");
       return;
     }
@@ -311,7 +327,9 @@ export default function NewDeadlinePage() {
       .from("deadlines")
       .insert({
         title: title.trim(),
-        category: category.trim(),
+        category: storedCategory,
+        category_key: safeCategoryKey,
+        custom_category_label: normalizedCustomCategoryLabel || null,
         due_date: dueDate,
         user_id: user.id,
         organization_id: activeMembership?.organization_id ?? null,
@@ -393,7 +411,9 @@ export default function NewDeadlinePage() {
         description: `${title.trim()} a été ajoutée au suivi DuePilot.`,
         metadata: {
           title: title.trim(),
-          category: category.trim(),
+          category: storedCategory,
+        category_key: safeCategoryKey,
+        custom_category_label: normalizedCustomCategoryLabel || null,
           due_date: dueDate,
           notification_days: selectedNotificationDays,
           recurrence_rule: recurrenceRule,
@@ -538,48 +558,14 @@ export default function NewDeadlinePage() {
                   </p>
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="category"
-                    className="mb-2 block text-sm font-semibold text-slate-100"
-                  >
-                    Catégorie <span className="text-blue-200">*</span>
-                  </label>
-
-                  <input
-                    id="category"
-                    type="text"
-                    placeholder="Ex : Assurance, Certification, Contrôle réglementaire"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    disabled={isLoading}
-                    autoComplete="off"
-                    maxLength={80}
-                    className="w-full rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950 focus:ring-4 focus:ring-blue-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-                  />
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {CATEGORY_SUGGESTIONS.map((suggestion) => {
-                      const isSelected = category.trim() === suggestion;
-
-                      return (
-                        <button
-                          key={suggestion}
-                          type="button"
-                          onClick={() => setCategory(suggestion)}
-                          disabled={isLoading}
-                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                            isSelected
-                              ? "border-blue-400/50 bg-blue-500/15 text-blue-100"
-                              : "border-white/10 bg-white/[0.03] text-slate-400 hover:border-white/20 hover:text-white"
-                          }`}
-                        >
-                          {suggestion}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                <DeadlineCategoryField
+                  categoryKey={categoryKey}
+                  customCategoryLabel={customCategoryLabel}
+                  onCategoryKeyChange={setCategoryKey}
+                  onCustomCategoryLabelChange={setCustomCategoryLabel}
+                  disabled={isLoading}
+                  required
+                />
 
                 <DateField
                   id="dueDate"

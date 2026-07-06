@@ -25,6 +25,12 @@ import { ensureUserOrganization } from "@/lib/organizations";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import { getUserDisplayName } from "@/lib/user-display";
 import { isUserAdmin } from "@/lib/user-roles";
+import {
+  DEADLINE_CATEGORY_OPTIONS,
+  getDeadlineCategoryDisplay,
+  getDeadlineCategoryLabel,
+  getDeadlineMainCategoryKey,
+} from "@/lib/deadline-categories";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +39,8 @@ type Deadline = {
   id: number;
   title: string;
   category: string | null;
+  category_key?: string | null;
+  custom_category_label?: string | null;
   due_date: string;
   recurrence_rule: string | null;
   importance_level: string | null;
@@ -45,6 +53,7 @@ type Deadline = {
 
 type EnrichedDeadline = Deadline & {
   categoryLabel: string;
+  categoryKey: string;
   formattedDate: string;
   compactDate: string;
   document: DeadlineDocument | null;
@@ -197,7 +206,7 @@ function buildFilterSummary({
         "Portée filtrée"
     );
   }
-  if (categoryFilter !== "all") activeFilters.push(categoryFilter);
+  if (categoryFilter !== "all") activeFilters.push(getDeadlineCategoryLabel(categoryFilter));
   if (yearFilter) activeFilters.push(`Année : ${yearFilter}`);
   if (monthFilter) {
     activeFilters.push(
@@ -246,7 +255,7 @@ export default async function DeadlineHistoryPage({
 
   const { data: deadlines, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
+    .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
     .or(
       buildDeadlineAccessOrFilter({
         userId: user.id,
@@ -294,20 +303,24 @@ export default async function DeadlineHistoryPage({
       importanceLabel: getDeadlineImportanceLabel(importanceLevel),
       importanceClassName: getDeadlineImportanceBadgeClassName(importanceLevel),
       importanceDotClassName: getDeadlineImportanceDotClassName(importanceLevel),
-      categoryLabel: deadline.category?.trim() || "Sans catégorie",
+      categoryLabel: getDeadlineCategoryDisplay({
+        category: deadline.category,
+        categoryKey: deadline.category_key,
+        customCategoryLabel: deadline.custom_category_label,
+      }),
+      categoryKey: getDeadlineMainCategoryKey({ category: deadline.category, categoryKey: deadline.category_key }),
       formattedDate: formatDeadlineDate(deadline.due_date),
       compactDate: formatCompactDate(deadline.due_date),
       document: documentsByDeadlineId.get(deadline.id) ?? null,
     };
   });
 
-  const categories = Array.from(
-    new Set(archivedDeadlines.map((deadline) => deadline.categoryLabel))
-  ).sort((firstCategory, secondCategory) =>
-    firstCategory.localeCompare(secondCategory, "fr", { sensitivity: "base" })
+  const usedCategoryKeys = new Set(archivedDeadlines.map((deadline) => deadline.categoryKey));
+  const categories = DEADLINE_CATEGORY_OPTIONS.filter((category) =>
+    usedCategoryKeys.has(category.key)
   );
 
-  const safeCategoryFilter = categories.includes(categoryFilter)
+  const safeCategoryFilter = categories.some((category) => category.key === categoryFilter)
     ? categoryFilter
     : "all";
 
@@ -330,7 +343,7 @@ export default async function DeadlineHistoryPage({
         ? searchableContent.includes(normalizedSearchQuery)
         : true;
       const matchesCategory =
-        safeCategoryFilter === "all" || deadline.categoryLabel === safeCategoryFilter;
+        safeCategoryFilter === "all" || deadline.categoryKey === safeCategoryFilter;
       const deadlineDate = parseLocalDate(deadline.due_date);
       const matchesYear = yearFilter
         ? String(deadlineDate.getFullYear()) === yearFilter
@@ -615,8 +628,8 @@ export default async function DeadlineHistoryPage({
                       >
                         <option value="all">Toutes les catégories</option>
                         {categories.map((category) => (
-                          <option key={category} value={category}>
-                            {category}
+                          <option key={category.key} value={category.key}>
+                            {category.label}
                           </option>
                         ))}
                       </select>

@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import { createActivityLog } from "@/lib/activity-logs";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import { getDeadlineImportanceLabel } from "@/lib/deadline-importance";
+import { getDeadlineCategoryDisplay } from "@/lib/deadline-categories";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -89,7 +90,7 @@ export async function GET(request: Request) {
 
   const { data: deadlines, error } = await supabaseAdmin
     .from("deadlines")
-    .select("id, title, category, due_date, user_id, notification_days, workflow_status, recurrence_rule, importance_level")
+    .select("id, title, category, category_key, custom_category_label, due_date, user_id, notification_days, workflow_status, recurrence_rule, importance_level")
     .order("due_date", { ascending: true });
 
   if (error) {
@@ -132,7 +133,13 @@ export async function GET(request: Request) {
 
     const email = userData.user.email;
     const safeTitle = escapeHtml(deadline.title);
-    const safeCategory = escapeHtml(deadline.category);
+    const safeCategory = escapeHtml(
+      getDeadlineCategoryDisplay({
+        category: deadline.category,
+        categoryKey: deadline.category_key,
+        customCategoryLabel: deadline.custom_category_label,
+      })
+    );
     const safeDueDate = escapeHtml(deadline.due_date);
     const safeNotificationLabel = escapeHtml(
       getNotificationLabel(daysUntilDueDate)

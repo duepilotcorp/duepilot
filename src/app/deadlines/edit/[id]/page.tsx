@@ -7,6 +7,7 @@ import type { DeadlineChecklistItem } from "@/lib/deadline-treatment";
 import { ensureUserOrganization } from "@/lib/organizations";
 import { getRecurrenceShortLabel } from "@/lib/recurrence";
 import { getDeadlineImportanceLabel } from "@/lib/deadline-importance";
+import { getDeadlineCategoryDisplay } from "@/lib/deadline-categories";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ type Deadline = {
   id: number;
   title: string;
   category: string;
+  category_key?: string | null;
+  custom_category_label?: string | null;
   due_date: string;
   notification_days: number[] | null;
   recurrence_rule: string | null;
@@ -86,7 +89,7 @@ export default async function EditDeadlinePage({
   const { data: deadline, error } = await supabase
     .from("deadlines")
     .select(
-      "id, title, category, due_date, notification_days, recurrence_rule, importance_level, treatment_note, useful_link_url, useful_link_label, created_at, user_id, organization_id, visibility, workflow_status"
+      "id, title, category, category_key, custom_category_label, due_date, notification_days, recurrence_rule, importance_level, treatment_note, useful_link_url, useful_link_label, created_at, user_id, organization_id, visibility, workflow_status"
     )
     .eq("id", id)
     .or(
@@ -164,6 +167,11 @@ export default async function EditDeadlinePage({
     ? []
     : ((checklistItemsData ?? []) as DeadlineChecklistItem[]);
   const notificationCount = editableDeadline.notification_days?.length ?? 0;
+  const categoryLabel = getDeadlineCategoryDisplay({
+    category: editableDeadline.category,
+    categoryKey: editableDeadline.category_key,
+    customCategoryLabel: editableDeadline.custom_category_label,
+  });
   const returnHref = returnTo === "detail" ? `/deadlines/${editableDeadline.id}` : "/deadlines";
   const returnLabel = returnTo === "detail" ? "Retour à la fiche" : "Retour aux échéances";
 
@@ -206,7 +214,7 @@ export default async function EditDeadlinePage({
                 {editableDeadline.title}
               </p>
               <div className="mt-4 space-y-2 text-sm text-slate-400">
-                <p>{editableDeadline.category}</p>
+                <p>{categoryLabel}</p>
                 <p>{formatDate(editableDeadline.due_date)}</p>
                 <p>
                   {notificationCount > 0

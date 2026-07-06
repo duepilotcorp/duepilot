@@ -21,6 +21,11 @@ import {
 } from "@/lib/deadline-importance";
 import { isUserAdmin } from "@/lib/user-roles";
 import { getAuthUserDisplayNameMap, getUserDisplayName } from "@/lib/user-display";
+import {
+  getDeadlineCategoryDisplay,
+  getDeadlineCategoryLabel,
+  getDeadlineMainCategoryKey,
+} from "@/lib/deadline-categories";
 import { createClient } from "@/lib/supabase/server";
 import { calculateAdministrativeRisk, getRiskDriverClassName } from "@/lib/administrative-risk";
 
@@ -30,6 +35,8 @@ type Deadline = {
   id: number;
   title: string;
   category: string;
+  category_key?: string | null;
+  custom_category_label?: string | null;
   due_date: string;
   recurrence_rule: string | null;
   importance_level: string | null;
@@ -206,7 +213,7 @@ export default async function DashboardPage() {
 
   const { data: deadlines, error } = await supabase
     .from("deadlines")
-    .select("id, title, category, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
+    .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
     .or(
       buildDeadlineAccessOrFilter({
         userId: user.id,
@@ -256,6 +263,12 @@ export default async function DashboardPage() {
       importanceLevel: normalizeDeadlineImportance(deadline.importance_level),
       importanceLabel: getDeadlineImportanceLabel(deadline.importance_level),
       importanceClassName: getDeadlineImportanceBadgeClassName(deadline.importance_level),
+      categoryLabel: getDeadlineCategoryDisplay({
+        category: deadline.category,
+        categoryKey: deadline.category_key,
+        customCategoryLabel: deadline.custom_category_label,
+      }),
+      categoryKey: getDeadlineMainCategoryKey({ category: deadline.category, categoryKey: deadline.category_key }),
       document: documentsByDeadlineId.get(deadline.id) ?? null,
     };
   });
@@ -306,7 +319,7 @@ export default async function DashboardPage() {
 
   const categoryBreakdown = Object.entries(
     activeDeadlines.reduce<Record<string, number>>((accumulator, deadline) => {
-      const category = deadline.category || "Sans catégorie";
+      const category = getDeadlineCategoryLabel(deadline.categoryKey);
       accumulator[category] = (accumulator[category] ?? 0) + 1;
       return accumulator;
     }, {})
@@ -599,7 +612,7 @@ Vue d’ensemble
                     {deadline.title}
                   </h3>
                   <p className="mt-2 text-sm text-slate-400">
-                    {deadline.category} · {deadline.formattedDate}
+                    {deadline.categoryLabel} · {deadline.formattedDate}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.statusClassName}`}>
@@ -782,7 +795,7 @@ Vue d’ensemble
                             {deadline.title}
                           </p>
                           <p className="mt-1 text-sm text-slate-400">
-                            {deadline.category} · {deadline.formattedDate}
+                            {deadline.categoryLabel} · {deadline.formattedDate}
                           </p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.importanceClassName}`}>

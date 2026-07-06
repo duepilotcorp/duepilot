@@ -6,6 +6,7 @@ import { FormEvent, useMemo, useState } from "react";
 import CollapsibleFormSection from "@/components/CollapsibleFormSection";
 import DateField from "@/components/DateField";
 import DeadlineDocumentField from "@/components/DeadlineDocumentField";
+import DeadlineCategoryField from "@/components/DeadlineCategoryField";
 import DeadlineImportanceSelector from "@/components/DeadlineImportanceSelector";
 import DeadlineTreatmentOptions from "@/components/DeadlineTreatmentOptions";
 import { createActivityLogs, type CreateActivityLogParams } from "@/lib/activity-logs";
@@ -28,6 +29,14 @@ import {
 } from "@/lib/deadline-document-actions";
 import type { DeadlineDocument } from "@/lib/deadline-documents";
 import { normalizeRecurrenceRule, RECURRENCE_SHORT_LABELS, type RecurrenceRule } from "@/lib/recurrence";
+import {
+  buildStoredDeadlineCategory,
+  getDeadlineCategoryDisplay,
+  getDeadlineMainCategoryKey,
+  normalizeCustomCategoryLabel,
+  normalizeDeadlineCategoryKey,
+  type DeadlineCategoryKey,
+} from "@/lib/deadline-categories";
 import RecurrenceSelector from "@/components/RecurrenceSelector";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -36,26 +45,14 @@ import {
   type DeadlineImportanceLevel,
 } from "@/lib/deadline-importance";
 
-const CATEGORY_SUGGESTIONS = [
-  "Assurance",
-  "Certification",
-  "Contrôle réglementaire",
-  "Habilitation",
-  "Contrat",
-  "Vérification périodique",
-  "Entretien obligatoire",
-  "Document administratif",
-  "Qualification professionnelle",
-  "Sécurité",
-  "Contrôle technique",
-];
-
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 
 type Deadline = {
   id: number;
   title: string;
   category: string;
+  category_key?: string | null;
+  custom_category_label?: string | null;
   due_date: string;
   notification_days?: number[] | null;
   recurrence_rule?: string | null;
@@ -195,7 +192,18 @@ export default function EditDeadlineForm({
   }, [deadline.notification_days]);
 
   const [title, setTitle] = useState(deadline.title);
-  const [category, setCategory] = useState(deadline.category);
+  const initialCategoryKey = getDeadlineMainCategoryKey({
+    category: deadline.category,
+    categoryKey: deadline.category_key,
+  });
+  const [categoryKey, setCategoryKey] = useState<DeadlineCategoryKey>(initialCategoryKey);
+  const [customCategoryLabel, setCustomCategoryLabel] = useState(
+    deadline.category_key
+      ? deadline.custom_category_label ?? ""
+      : initialCategoryKey === "other"
+        ? deadline.category
+        : ""
+  );
   const [dueDate, setDueDate] = useState(deadline.due_date);
   const [notificationDays, setNotificationDays] = useState<number[]>(
     initialNotificationDays
@@ -236,7 +244,28 @@ export default function EditDeadlineForm({
   );
   const dateInsight = useMemo(() => getDateInsight(dueDate), [dueDate]);
   const deadlinePreviewTitle = title.trim() || "Échéance sans nom";
-  const deadlinePreviewCategory = category.trim() || "Catégorie non définie";
+  const normalizedCustomCategoryLabel = useMemo(
+    () => normalizeCustomCategoryLabel(customCategoryLabel),
+    [customCategoryLabel]
+  );
+  const currentCategoryLabel = useMemo(
+    () =>
+      getDeadlineCategoryDisplay({
+        categoryKey,
+        customCategoryLabel: normalizedCustomCategoryLabel,
+      }),
+    [categoryKey, normalizedCustomCategoryLabel]
+  );
+  const initialCategoryLabel = useMemo(
+    () =>
+      getDeadlineCategoryDisplay({
+        category: deadline.category,
+        categoryKey: deadline.category_key,
+        customCategoryLabel: deadline.custom_category_label,
+      }),
+    [deadline.category, deadline.category_key, deadline.custom_category_label]
+  );
+  const deadlinePreviewCategory = currentCategoryLabel;
 
   const normalizedCurrentChecklistItems = useMemo(
     () => (enableChecklist ? normalizeChecklistItems(checklistItems) : []),
@@ -267,7 +296,7 @@ export default function EditDeadlineForm({
 
   const hasChanges =
     title.trim() !== deadline.title ||
-    category.trim() !== deadline.category ||
+    currentCategoryLabel !== initialCategoryLabel ||
     dueDate !== deadline.due_date ||
     JSON.stringify(normalizedNotificationDays) !==
       JSON.stringify(initialNotificationDays) ||
@@ -283,7 +312,13 @@ export default function EditDeadlineForm({
 
     setErrorMessage("");
 
-    if (!title.trim() || !category.trim() || !dueDate) {
+    const safeCategoryKey = normalizeDeadlineCategoryKey(categoryKey);
+    const storedCategory = buildStoredDeadlineCategory({
+      categoryKey: safeCategoryKey,
+      customCategoryLabel: normalizedCustomCategoryLabel,
+    });
+
+    if (!title.trim() || !safeCategoryKey || !dueDate) {
       setErrorMessage("Complétez le nom, la catégorie et la date d’échéance.");
       return;
     }
@@ -335,7 +370,9 @@ export default function EditDeadlineForm({
       .from("deadlines")
       .update({
         title: title.trim(),
-        category: category.trim(),
+        category: storedCategory,
+        category_key: safeCategoryKey,
+        custom_category_label: normalizedCustomCategoryLabel || null,
         due_date: dueDate,
         notification_days: selectedNotificationDays,
         recurrence_rule: recurrenceRule,
@@ -471,17 +508,20 @@ export default function EditDeadlineForm({
       });
     }
 
-    if (category.trim() !== deadline.category) {
+    if (currentCategoryLabel !== initialCategoryLabel) {
       activityLogs.push({
         supabase,
         userId: user.id,
         deadlineId: deadline.id,
         action: "deadline.category_updated",
         title: "Catégorie modifiée",
-        description: `La catégorie est passée de « ${deadline.category} » à « ${category.trim()} ».`,
+        description: `La catégorie est passée de « ${initialCategoryLabel} » à « ${currentCategoryLabel} ».`,
         metadata: {
-          previous_category: deadline.category,
-          new_category: category.trim(),
+          previous_category: initialCategoryLabel,
+          new_category: currentCategoryLabel,
+          previous_category_key: deadline.category_key ?? null,
+          new_category_key: safeCategoryKey,
+          new_custom_category_label: normalizedCustomCategoryLabel || null,
         },
       });
     }
@@ -650,47 +690,14 @@ export default function EditDeadlineForm({
               </p>
             </div>
 
-            <div>
-              <label
-                htmlFor="category"
-                className="mb-2 block text-sm font-semibold text-slate-100"
-              >
-                Catégorie <span className="text-blue-200">*</span>
-              </label>
-
-              <input
-                id="category"
-                type="text"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                disabled={isLoading}
-                autoComplete="off"
-                maxLength={80}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950 focus:ring-4 focus:ring-blue-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-              />
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                {CATEGORY_SUGGESTIONS.map((suggestion) => {
-                  const isSelected = category.trim() === suggestion;
-
-                  return (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      onClick={() => setCategory(suggestion)}
-                      disabled={isLoading}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                        isSelected
-                          ? "border-blue-400/50 bg-blue-500/15 text-blue-100"
-                          : "border-white/10 bg-white/[0.03] text-slate-400 hover:border-white/20 hover:text-white"
-                      }`}
-                    >
-                      {suggestion}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <DeadlineCategoryField
+              categoryKey={categoryKey}
+              customCategoryLabel={customCategoryLabel}
+              onCategoryKeyChange={setCategoryKey}
+              onCustomCategoryLabelChange={setCustomCategoryLabel}
+              disabled={isLoading}
+              required
+            />
 
             <DateField
               id="dueDate"
