@@ -20,7 +20,7 @@ import {
   normalizeDeadlineImportance,
 } from "@/lib/deadline-importance";
 import { isUserAdmin } from "@/lib/user-roles";
-import { getUserDisplayName } from "@/lib/user-display";
+import { getAuthUserDisplayNameMap, getUserDisplayName } from "@/lib/user-display";
 import { createClient } from "@/lib/supabase/server";
 import { calculateAdministrativeRisk, getRiskDriverClassName } from "@/lib/administrative-risk";
 
@@ -71,6 +71,15 @@ function formatDeadlineDate(dueDate: string) {
     month: "long",
     year: "numeric",
   }).format(parseLocalDate(dueDate));
+}
+
+function formatShortDateTime(date: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(date));
 }
 
 function getReadableStatus(daysUntilDeadline: number) {
@@ -353,34 +362,56 @@ export default async function DashboardPage() {
     (month) => month.lateCount > 0 || month.criticalCount > 0
   ).length;
   const dashboardBusiestMonth = [...dashboardCalendarMonths].sort((a, b) => b.total - a.total)[0];
+  const latestTeamDeadlinesBase = activeDeadlines
+    .filter((deadline) => deadline.visibility === "team")
+    .sort(
+      (firstDeadline, secondDeadline) =>
+        new Date(secondDeadline.created_at).getTime() -
+        new Date(firstDeadline.created_at).getTime()
+    )
+    .slice(0, 3);
+  const latestTeamAuthorNames = await getAuthUserDisplayNameMap(
+    latestTeamDeadlinesBase.map((deadline) => deadline.user_id)
+  );
+  const latestTeamDeadlines = latestTeamDeadlinesBase.map((deadline) => ({
+    ...deadline,
+    createdLabel: formatShortDateTime(deadline.created_at),
+    authorName:
+      latestTeamAuthorNames.get(deadline.user_id ?? "") ??
+      (deadline.user_id === user.id ? displayName : "Administrateur"),
+  }));
 
   const statCards = [
     {
       label: "En retard",
       value: lateCount,
       helper: "À traiter en priorité",
-      className: "border-red-500/20 bg-red-500/10",
+      href: "/deadlines?status=late",
+      className: "border-red-500/20 bg-red-500/10 hover:border-red-400/40",
       valueClassName: "text-red-100",
     },
     {
       label: "Aujourd’hui",
       value: todayCount,
       helper: "Actions du jour",
-      className: "border-orange-500/20 bg-orange-500/10",
+      href: "/deadlines?status=today",
+      className: "border-orange-500/20 bg-orange-500/10 hover:border-orange-400/40",
       valueClassName: "text-orange-100",
     },
     {
       label: "Sous 30 jours",
       value: next30Count,
       helper: `${inProgressCount} en cours · ${pendingValidationCount} à valider`,
-      className: "border-yellow-500/20 bg-yellow-500/10",
+      href: "/deadlines?status=next30",
+      className: "border-yellow-500/20 bg-yellow-500/10 hover:border-yellow-400/40",
       valueClassName: "text-yellow-100",
     },
     {
       label: "Total suivies",
       value: total,
       helper: `${teamCount} équipe · ${personalCount} perso · ${recurringCount} récurrentes`,
-      className: "border-emerald-500/20 bg-emerald-500/10",
+      href: "/deadlines",
+      className: "border-emerald-500/20 bg-emerald-500/10 hover:border-emerald-400/40",
       valueClassName: "text-emerald-100",
     },
   ];
@@ -507,17 +538,88 @@ Vue d’ensemble
 
         <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {statCards.map((card) => (
-            <div
+            <Link
               key={card.label}
-              className={`rounded-3xl border p-5 shadow-xl shadow-slate-950/20 transition hover:-translate-y-1 hover:shadow-2xl ${card.className}`}
+              href={card.href}
+              className={`group rounded-3xl border p-5 shadow-xl shadow-slate-950/20 transition hover:-translate-y-1 hover:shadow-2xl ${card.className}`}
             >
-              <p className="text-sm font-medium text-slate-300">{card.label}</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-slate-300">{card.label}</p>
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-semibold text-slate-400 transition group-hover:border-white/20 group-hover:text-white">
+                  Filtrer
+                </span>
+              </div>
               <p className={`mt-4 text-5xl font-bold ${card.valueClassName}`}>
                 {card.value}
               </p>
               <p className="mt-3 text-sm text-slate-400">{card.helper}</p>
-            </div>
+            </Link>
           ))}
+        </section>
+
+        <section className="mt-6 rounded-[2rem] border border-cyan-400/20 bg-gradient-to-br from-cyan-400/10 via-slate-900/85 to-blue-500/10 p-5 shadow-2xl shadow-cyan-950/20 animate-rise-in-delay-1 sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                Nouvelles échéances équipe
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-white">
+                Les derniers ajouts à ne pas manquer
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                Les 3 dernières échéances partagées avec l’équipe apparaissent ici pour que chaque membre voie immédiatement les nouveautés.
+              </p>
+            </div>
+
+            <Link
+              href="/deadlines?scope=team&sort=created_desc"
+              className="inline-flex justify-center rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-200/40 hover:bg-cyan-400/15 hover:text-white"
+            >
+              Voir les derniers ajouts équipe
+            </Link>
+          </div>
+
+          {latestTeamDeadlines.length > 0 ? (
+            <div className="mt-5 grid gap-3 lg:grid-cols-3">
+              {latestTeamDeadlines.map((deadline) => (
+                <Link
+                  key={deadline.id}
+                  href={`/deadlines/${deadline.id}`}
+                  className="group rounded-3xl border border-white/10 bg-slate-950/35 p-4 transition hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-400/10"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.importanceClassName}`}>
+                      {deadline.importanceLabel}
+                    </span>
+                    <span className="text-xs font-medium text-slate-500">
+                      {deadline.createdLabel}
+                    </span>
+                  </div>
+                  <h3 className="mt-4 line-clamp-2 text-lg font-bold text-white transition group-hover:text-cyan-100">
+                    {deadline.title}
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-400">
+                    {deadline.category} · {deadline.formattedDate}
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${deadline.statusClassName}`}>
+                      {deadline.readableStatus}
+                    </span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-semibold text-slate-300">
+                      Ajoutée par {deadline.authorName}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5 rounded-3xl border border-white/10 bg-slate-950/35 p-5">
+              <p className="font-semibold text-white">Aucune échéance équipe récente.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                Les prochaines échéances partagées par l’organisation apparaîtront automatiquement ici.
+              </p>
+            </div>
+          )}
         </section>
 
         <section className="mt-6 rounded-[2rem] border border-white/10 bg-slate-900/80 p-5 shadow-2xl shadow-slate-950/20 animate-rise-in-delay-1 sm:p-6">

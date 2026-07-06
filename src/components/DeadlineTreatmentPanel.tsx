@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import {
   getChecklistCompletion,
   type DeadlineChecklistItem,
 } from "@/lib/deadline-treatment";
+import { updateDeadlineChecklistItemCompletion } from "@/lib/deadline-treatment-actions";
 
 type DeadlineTreatmentPanelProps = {
   deadlineId: number;
@@ -37,7 +37,6 @@ export default function DeadlineTreatmentPanel({
   usefulLinkLabel = null,
   canEdit = false,
 }: DeadlineTreatmentPanelProps) {
-  const supabase = createClient();
   const [items, setItems] = useState(checklistItems);
   const [pendingItemId, setPendingItemId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -59,23 +58,14 @@ export default function DeadlineTreatmentPanel({
     setErrorMessage("");
 
     const nextCompletedState = !item.is_completed;
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const result = await updateDeadlineChecklistItemCompletion({
+      deadlineId,
+      itemId: item.id,
+      isCompleted: nextCompletedState,
+    });
 
-    const { error } = await supabase
-      .from("deadline_checklist_items")
-      .update({
-        is_completed: nextCompletedState,
-        completed_at: nextCompletedState ? new Date().toISOString() : null,
-        completed_by: nextCompletedState ? user?.id ?? null : null,
-      })
-      .eq("id", item.id)
-      .eq("deadline_id", deadlineId);
-
-    if (error) {
-      console.error(error);
-      setErrorMessage("Impossible de mettre à jour cette checklist pour le moment.");
+    if (!result.ok) {
+      setErrorMessage(result.message);
       setPendingItemId(null);
       return;
     }
@@ -86,8 +76,8 @@ export default function DeadlineTreatmentPanel({
           ? {
               ...currentItem,
               is_completed: nextCompletedState,
-              completed_at: nextCompletedState ? new Date().toISOString() : null,
-              completed_by: nextCompletedState ? user?.id ?? null : null,
+              completed_at: result.completedAt,
+              completed_by: result.completedBy,
             }
           : currentItem
       )
@@ -202,7 +192,14 @@ export default function DeadlineTreatmentPanel({
               <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
                 Lien utile
               </p>
-              <p className="mt-2 break-all text-sm leading-6 text-slate-300">{safeUrl}</p>
+              <a
+                href={safeUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mt-2 block break-all text-sm leading-6 text-cyan-100 underline decoration-cyan-200/30 underline-offset-4 transition hover:text-white hover:decoration-cyan-100"
+              >
+                {safeUrl}
+              </a>
             </div>
             <a
               href={safeUrl}

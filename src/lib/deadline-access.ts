@@ -83,6 +83,34 @@ export function canEditDeadline({
   return ownerId === userId;
 }
 
+
+export function canEditDeadlineTreatment({
+  visibility,
+  ownerId,
+  userId,
+  organizationRole,
+  workflowStatus,
+  claimedBy,
+}: {
+  visibility: DeadlineVisibility;
+  ownerId: string | null | undefined;
+  userId: string;
+  organizationRole: OrganizationMemberRole | null | undefined;
+  workflowStatus?: DeadlineWorkflowStatus | string | null;
+  claimedBy?: string | null | undefined;
+}) {
+  if (normalizeDeadlineWorkflowStatus(workflowStatus) === "archived") return false;
+
+  if (visibility === "team") {
+    if (canManageTeamDeadlines(organizationRole)) return true;
+    if (!canContributeToTeamDeadlines(organizationRole)) return false;
+
+    return !claimedBy || claimedBy === userId;
+  }
+
+  return ownerId === userId;
+}
+
 export function canDeleteDeadline({
   visibility,
   ownerId,

@@ -11,6 +11,7 @@ import {
   buildDeadlineAccessOrFilter,
   canContributeToTeamDeadlines,
   canEditDeadline,
+  canEditDeadlineTreatment,
   canDeleteDeadline,
   canManageTeamDeadlines,
   DEADLINE_VISIBILITY_LABELS,
@@ -323,6 +324,14 @@ export default async function DeadlineDetailPage({
     ownerId: typedDeadline.user_id,
     userId: user.id,
     organizationRole,
+  });
+  const canEditDeadlineTreatmentOptions = canEditDeadlineTreatment({
+    visibility,
+    ownerId: typedDeadline.user_id,
+    userId: user.id,
+    organizationRole,
+    workflowStatus,
+    claimedBy: typedDeadline.claimed_by,
   });
   const isOwner = typedDeadline.user_id === user.id;
   const claimedByCurrentUser = typedDeadline.claimed_by === user.id;
@@ -779,7 +788,7 @@ Fiche échéance
           treatmentNote={typedDeadline.treatment_note}
           usefulLinkUrl={typedDeadline.useful_link_url}
           usefulLinkLabel={typedDeadline.useful_link_label}
-          canEdit={canEditCurrentDeadline || canContributeTeam}
+          canEdit={canEditDeadlineTreatmentOptions}
         />
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">

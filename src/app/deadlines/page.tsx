@@ -625,28 +625,32 @@ export default async function DeadlinesPage({
       label: "En retard",
       value: lateCount,
       helper: "À régulariser",
-      className: "border-red-500/20 bg-red-500/10",
+      href: "/deadlines?status=late",
+      className: "border-red-500/20 bg-red-500/10 hover:border-red-400/40",
       valueClassName: "text-red-100",
     },
     {
       label: "Aujourd’hui",
       value: todayCount,
       helper: "Actions du jour",
-      className: "border-orange-500/20 bg-orange-500/10",
+      href: "/deadlines?status=today",
+      className: "border-orange-500/20 bg-orange-500/10 hover:border-orange-400/40",
       valueClassName: "text-orange-100",
     },
     {
       label: "Sous 30 jours",
       value: next30Count,
       helper: "À anticiper",
-      className: "border-yellow-500/20 bg-yellow-500/10",
+      href: "/deadlines?status=next30",
+      className: "border-yellow-500/20 bg-yellow-500/10 hover:border-yellow-400/40",
       valueClassName: "text-yellow-100",
     },
     {
       label: "Sous contrôle",
       value: safeCount,
       helper: "Au-delà de 30 jours",
-      className: "border-emerald-500/20 bg-emerald-500/10",
+      href: "/deadlines?status=safe",
+      className: "border-emerald-500/20 bg-emerald-500/10 hover:border-emerald-400/40",
       valueClassName: "text-emerald-100",
     },
   ];
@@ -759,16 +763,22 @@ export default async function DeadlinesPage({
 
         <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {statCards.map((card) => (
-            <div
+            <Link
               key={card.label}
-              className={`rounded-3xl border p-5 shadow-xl shadow-slate-950/20 transition hover:-translate-y-1 hover:shadow-2xl ${card.className}`}
+              href={card.href}
+              className={`group rounded-3xl border p-5 shadow-xl shadow-slate-950/20 transition hover:-translate-y-1 hover:shadow-2xl ${card.className}`}
             >
-              <p className="text-sm font-medium text-slate-300">{card.label}</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-slate-300">{card.label}</p>
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-semibold text-slate-400 transition group-hover:border-white/20 group-hover:text-white">
+                  Filtrer
+                </span>
+              </div>
               <p className={`mt-4 text-5xl font-bold ${card.valueClassName}`}>
                 {card.value}
               </p>
               <p className="mt-3 text-sm text-slate-400">{card.helper}</p>
-            </div>
+            </Link>
           ))}
         </section>
 
