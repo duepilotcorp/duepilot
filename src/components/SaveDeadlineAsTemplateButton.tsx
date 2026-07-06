@@ -126,13 +126,13 @@ export default function SaveDeadlineAsTemplateButton({
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
-        className="inline-flex justify-center rounded-xl border border-blue-400/25 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white"
+        className="inline-flex w-full justify-center rounded-xl border border-blue-400/25 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white sm:w-auto"
       >
         Enregistrer comme modèle
       </button>
 
       {isOpen ? (
-        <div className="absolute right-0 z-40 mt-3 w-[min(24rem,calc(100vw-2.5rem))] rounded-3xl border border-white/10 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-xl sm:w-96">
+        <div className="fixed inset-x-4 top-20 z-[90] max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-96">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-bold text-white">Ajouter à la bibliothèque</p>

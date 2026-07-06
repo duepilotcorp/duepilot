@@ -14,7 +14,7 @@ type AppHeaderProps = {
 };
 
 const baseButtonClassName =
-  "inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-4 focus:ring-blue-500/10";
+  "inline-flex w-full items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-4 focus:ring-blue-500/10 sm:w-auto";
 
 function getNavClassName(isActive: boolean) {
   return isActive
@@ -42,14 +42,14 @@ export default function AppHeader({
   const showDeadlinesLink = active !== "deadlines";
 
   return (
-    <header className="relative z-50 rounded-[1.75rem] border border-white/10 bg-slate-950/70 p-3 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <Link href="/dashboard" className="group flex w-fit items-center gap-3 px-1">
+    <header className="relative z-50 rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-2.5 shadow-2xl shadow-slate-950/30 backdrop-blur-xl sm:rounded-[1.75rem] sm:p-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <Link href="/dashboard" className="group flex min-w-0 items-center gap-3 px-1 sm:w-fit">
           <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-300/25 bg-blue-400/10 shadow-[0_0_40px_rgba(59,130,246,0.18)] transition group-hover:border-blue-200/40 group-hover:bg-blue-400/15">
             <span className="h-4 w-4 rounded-full bg-blue-300 shadow-[0_0_24px_rgba(147,197,253,0.85)]" />
           </span>
-          <span>
-            <span className="block text-sm font-semibold tracking-[0.28em] text-blue-100">
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold tracking-[0.28em] text-blue-100">
               DUEPILOT
             </span>
             <span className="hidden text-xs text-slate-500 sm:block">
@@ -59,7 +59,7 @@ export default function AppHeader({
         </Link>
 
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between lg:justify-end">
-          <nav className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end" aria-label="Navigation principale">
+          <nav className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end" aria-label="Navigation principale">
             {showDeadlinesLink ? (
               <Link href="/deadlines" className={getNavClassName(false)}>
                 Échéances
@@ -78,8 +78,8 @@ export default function AppHeader({
             ) : null}
           </nav>
 
-          <details className="group relative z-[70]">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-left text-sm transition hover:border-blue-400/40 hover:bg-blue-400/10 [&::-webkit-details-marker]:hidden">
+          <details className="group relative z-[70] w-full md:w-auto">
+            <summary className="flex w-full cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-left text-sm transition hover:border-blue-400/40 hover:bg-blue-400/10 [&::-webkit-details-marker]:hidden">
               <span className="flex min-w-0 items-center gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-300/20 bg-blue-400/10 text-sm font-bold text-blue-100">
                   {userName.slice(0, 1).toUpperCase()}
@@ -96,7 +96,7 @@ export default function AppHeader({
               <span className="text-slate-500 transition group-open:rotate-180">⌄</span>
             </summary>
 
-            <div className="absolute right-0 z-[100] mt-3 w-full min-w-[18rem] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 p-2 shadow-2xl shadow-black/40 backdrop-blur-xl md:w-80">
+            <div className="absolute left-0 right-0 z-[100] mt-3 max-h-[calc(100dvh-8rem)] w-full overflow-y-auto rounded-3xl border border-white/10 bg-slate-950/95 p-2 shadow-2xl shadow-black/40 backdrop-blur-xl md:left-auto md:w-80">
               <div className="border-b border-white/10 px-3 py-3">
                 <p className="truncate text-sm font-bold text-white">{userName}</p>
                 {userEmail ? (

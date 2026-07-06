@@ -13,6 +13,7 @@ type DeleteDeadlineButtonProps = {
   documentFilePath?: string | null;
   documentFilePaths?: Array<string | null>;
   redirectTo?: string;
+  className?: string;
 };
 
 export default function DeleteDeadlineButton({
@@ -22,6 +23,7 @@ export default function DeleteDeadlineButton({
   documentFilePath,
   documentFilePaths = [],
   redirectTo,
+  className = "",
 }: DeleteDeadlineButtonProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -111,7 +113,7 @@ export default function DeleteDeadlineButton({
       type="button"
       onClick={handleDelete}
       disabled={isDeleting}
-      className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-100 transition hover:border-red-400/40 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+      className={`rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-100 transition hover:border-red-400/40 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
     >
       {isDeleting ? "Suppression..." : "Supprimer"}
     </button>

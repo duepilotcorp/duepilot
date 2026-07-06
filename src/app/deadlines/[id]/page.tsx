@@ -467,10 +467,10 @@ export default async function DeadlineDetailPage({
             Retour aux échéances
           </Link>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="grid w-full grid-cols-1 gap-3 sm:flex sm:w-auto sm:flex-row sm:items-center">
             <Link
               href={`/deadlines/${typedDeadline.id}/report`}
-              className="inline-flex justify-center rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300/40 hover:bg-emerald-400/15 hover:text-white"
+              className="inline-flex w-full justify-center rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300/40 hover:bg-emerald-400/15 hover:text-white sm:w-auto"
             >
               Rapport PDF
             </Link>
@@ -499,7 +499,7 @@ export default async function DeadlineDetailPage({
                 {canEditCurrentDeadline ? (
                   <Link
                     href={`/deadlines/edit/${typedDeadline.id}?returnTo=detail`}
-                    className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                    className="inline-flex w-full justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white sm:w-auto"
                   >
                     Modifier
                   </Link>
@@ -511,6 +511,7 @@ export default async function DeadlineDetailPage({
                     category={typedDeadline.category}
                     documentFilePaths={documents.map((deadlineDocument) => deadlineDocument.file_path)}
                     redirectTo="/deadlines"
+                    className="w-full sm:w-auto"
                   />
                 ) : null}
               </>

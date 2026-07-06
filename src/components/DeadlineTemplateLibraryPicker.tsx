@@ -211,7 +211,7 @@ export default function DeadlineTemplateLibraryPicker({
 
         <Link
           href="/deadlines/library"
-          className="inline-flex shrink-0 justify-center rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3 text-sm font-bold text-slate-100 transition hover:border-blue-300/40 hover:bg-blue-400/10 hover:text-white"
+          className="inline-flex w-full shrink-0 justify-center rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3 text-sm font-bold text-slate-100 transition hover:border-blue-300/40 hover:bg-blue-400/10 hover:text-white sm:w-auto"
         >
           Gérer la bibliothèque
         </Link>
@@ -223,7 +223,7 @@ export default function DeadlineTemplateLibraryPicker({
         </div>
       ) : null}
 
-      <div className="mt-6 grid gap-3 lg:grid-cols-[1.2fr_0.85fr_0.85fr] xl:grid-cols-[1.3fr_0.85fr_0.85fr_0.85fr_0.85fr]">
+      <div className="mt-6 grid min-w-0 gap-3 lg:grid-cols-[1.2fr_0.85fr_0.85fr] xl:grid-cols-[1.3fr_0.85fr_0.85fr_0.85fr_0.85fr]">
         <div>
           <label htmlFor="templateLibrarySearch" className="sr-only">
             Rechercher un modèle
@@ -309,7 +309,7 @@ export default function DeadlineTemplateLibraryPicker({
         </button>
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-5 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {filteredTemplates.map((template) => {
           const isSelected = String(template.id) === selectedTemplateId;
           const categoryLabel = getDeadlineCategoryDisplay({

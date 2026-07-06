@@ -373,7 +373,7 @@ export default function DeadlineTemplateManager({
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <div className="rounded-3xl border border-blue-400/20 bg-blue-400/10 p-5">
           <p className="text-sm font-medium text-blue-100/80">Modèles enregistrés</p>
           <p className="mt-3 text-4xl font-bold text-white">{templates.length}</p>
@@ -412,7 +412,7 @@ export default function DeadlineTemplateManager({
           <button
             type="button"
             onClick={startCreateTemplate}
-            className="inline-flex justify-center rounded-2xl bg-blue-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20"
+            className="inline-flex w-full justify-center rounded-2xl bg-blue-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20 sm:w-auto"
           >
             Créer un modèle
           </button>
@@ -451,7 +451,7 @@ export default function DeadlineTemplateManager({
               </button>
             </div>
 
-            <div className="mt-6 grid gap-5 lg:grid-cols-2">
+            <div className="mt-6 grid min-w-0 gap-5 lg:grid-cols-2">
               <div>
                 <label htmlFor="templateName" className="mb-2 block text-sm font-semibold text-slate-100">
                   Nom du modèle <span className="text-blue-200">*</span>
@@ -648,14 +648,14 @@ export default function DeadlineTemplateManager({
                 type="button"
                 onClick={resetForm}
                 disabled={isSaving}
-                className="inline-flex justify-center rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:bg-white/[0.04] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-full justify-center rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:bg-white/[0.04] hover:text-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="inline-flex justify-center rounded-2xl bg-blue-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-blue-500/50"
+                className="inline-flex w-full justify-center rounded-2xl bg-blue-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-blue-500/50 sm:w-auto"
               >
                 {isSaving ? "Enregistrement..." : formState.id ? "Enregistrer les modifications" : "Ajouter le modèle"}
               </button>
@@ -737,7 +737,7 @@ export default function DeadlineTemplateManager({
           </button>
         </div>
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div className="mt-6 grid min-w-0 gap-4 lg:grid-cols-2">
           {filteredTemplates.map((template) => {
             const categoryLabel = getDeadlineCategoryDisplay({
               category: template.category,
@@ -751,7 +751,7 @@ export default function DeadlineTemplateManager({
                 key={template.id}
                 className="group rounded-3xl border border-white/10 bg-white/[0.03] p-5 transition hover:-translate-y-0.5 hover:border-blue-300/30 hover:bg-blue-400/[0.07]"
               >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-2">
                       <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getVisibilityClassName(template.visibility)}`}>
@@ -817,10 +817,10 @@ export default function DeadlineTemplateManager({
                   </div>
                 ) : null}
 
-                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:flex sm:flex-wrap">
                   <Link
                     href={`/deadlines/new?template=${template.id}`}
-                    className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
+                    className="inline-flex justify-center rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 sm:min-w-28"
                   >
                     Utiliser
                   </Link>
@@ -829,7 +829,7 @@ export default function DeadlineTemplateManager({
                       type="button"
                       onClick={() => startEditTemplate(template)}
                       disabled={busyTemplateId === template.id}
-                      className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-28"
                     >
                       Modifier
                     </button>
@@ -839,7 +839,7 @@ export default function DeadlineTemplateManager({
                       type="button"
                       onClick={() => handleDeleteTemplate(template)}
                       disabled={busyTemplateId === template.id}
-                      className="inline-flex justify-center rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm font-semibold text-red-100 transition hover:border-red-300/40 hover:bg-red-400/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex justify-center rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm font-semibold text-red-100 transition hover:border-red-300/40 hover:bg-red-400/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-28"
                     >
                       {busyTemplateId === template.id ? "Suppression..." : "Supprimer"}
                     </button>

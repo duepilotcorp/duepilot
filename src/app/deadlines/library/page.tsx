@@ -76,7 +76,7 @@ export default async function DeadlineLibraryPage() {
                   Bibliothèque personnalisée
                 </div>
 
-                <h1 className="mt-5 max-w-4xl text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
+                <h1 className="mt-5 max-w-4xl text-3xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
                   Vos modèles d’échéances réutilisables.
                 </h1>
 
@@ -101,7 +101,7 @@ export default async function DeadlineLibraryPage() {
                 </p>
                 <Link
                   href="/deadlines/new"
-                  className="mt-5 inline-flex justify-center rounded-2xl bg-blue-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-400"
+                  className="mt-5 inline-flex w-full justify-center rounded-2xl bg-blue-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-400 sm:w-auto"
                 >
                   Créer une échéance
                 </Link>

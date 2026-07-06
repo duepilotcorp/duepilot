@@ -697,7 +697,7 @@ export default async function DeadlinesPage({
 Échéances
                 </div>
 
-                <h1 className="mt-5 max-w-3xl text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
+                <h1 className="mt-5 max-w-3xl text-3xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
                   Votre registre opérationnel.
                 </h1>
 
@@ -709,7 +709,7 @@ export default async function DeadlinesPage({
                       : "Aucune échéance critique immédiate."}
                 </p>
 
-                <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-300">
+                <div className="mt-6 flex flex-wrap gap-2 text-sm text-slate-300 sm:gap-3">
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
                     {total} échéance{total > 1 ? "s" : ""} suivie{total > 1 ? "s" : ""}
                   </span>
@@ -1153,13 +1153,13 @@ export default async function DeadlinesPage({
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex min-w-0 items-center gap-2">
                               <span
                                 className={`h-2.5 w-2.5 shrink-0 rounded-full ${deadline.indicatorClassName}`}
                               />
                               <Link
                                 href={`/deadlines/${deadline.id}`}
-                                className="truncate font-semibold text-white transition hover:text-blue-100"
+                                className="block min-w-0 truncate font-semibold text-white transition hover:text-blue-100"
                               >
                                 {deadline.title}
                               </Link>
@@ -1231,10 +1231,10 @@ export default async function DeadlinesPage({
                           </div>
                         </div>
 
-                        <div className="mt-4 flex flex-wrap gap-2">
+                        <div className="mt-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                           <Link
                             href={`/deadlines/${deadline.id}`}
-                            className="flex-1 rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-center text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white"
+                            className="rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-center text-sm font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-400/15 hover:text-white sm:flex-1"
                           >
                             Consulter
                           </Link>
@@ -1243,7 +1243,7 @@ export default async function DeadlinesPage({
                             <>
                               <Link
                                 href={`/deadlines/edit/${deadline.id}`}
-                                className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+                                className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white sm:flex-1"
                               >
                                 Modifier
                               </Link>
@@ -1253,6 +1253,7 @@ export default async function DeadlinesPage({
                                 title={deadline.title}
                                 category={deadline.category}
                                 documentFilePath={deadline.document?.file_path}
+                                className="w-full sm:flex-1"
                               />
                             </>
                           ) : null}
