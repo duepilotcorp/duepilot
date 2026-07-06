@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import AccountEmailPreferencesForm from "@/components/AccountEmailPreferencesForm";
 import AccountPasswordForm from "@/components/AccountPasswordForm";
 import AccountProfileForm from "@/components/AccountProfileForm";
 import AppHeader from "@/components/AppHeader";
@@ -72,6 +73,20 @@ export default async function AccountSettingsPage() {
     userOrganization?.membership.role === "admin";
   const isAdminUser = await isUserAdmin(user.id);
 
+  const { data: emailPreferences, error: emailPreferencesError } = await supabase
+    .from("user_notification_preferences")
+    .select("weekly_summary_enabled")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (emailPreferencesError) {
+    console.error(emailPreferencesError);
+  }
+
+  const weeklySummaryEnabled = Boolean(
+    emailPreferences?.weekly_summary_enabled
+  );
+
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 text-white">
       <div className="pointer-events-none fixed inset-0 -z-10">
@@ -132,6 +147,9 @@ export default async function AccountSettingsPage() {
         <section className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.78fr]">
           <div className="space-y-6">
             <AccountProfileForm initialFullName={storedFullName} email={email} />
+            <AccountEmailPreferencesForm
+              initialWeeklySummaryEnabled={weeklySummaryEnabled}
+            />
             <AccountPasswordForm />
           </div>
 
