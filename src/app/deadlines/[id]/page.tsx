@@ -6,6 +6,7 @@ import RenewDeadlineForm from "@/components/RenewDeadlineForm";
 import TeamDeadlineWorkflowActions from "@/components/TeamDeadlineWorkflowActions";
 import RenewalHistoryList from "@/components/RenewalHistoryList";
 import DeadlineTreatmentPanel from "@/components/DeadlineTreatmentPanel";
+import SaveDeadlineAsTemplateButton from "@/components/SaveDeadlineAsTemplateButton";
 import { getDeadlineActivityLogs } from "@/lib/activity-logs";
 import {
   buildDeadlineAccessOrFilter,
@@ -473,6 +474,26 @@ export default async function DeadlineDetailPage({
             >
               Rapport PDF
             </Link>
+            {canEditCurrentDeadline ? (
+              <SaveDeadlineAsTemplateButton
+                userId={user.id}
+                organizationId={userOrganization?.organization.id}
+                organizationRole={organizationRole}
+                deadline={{
+                  title: typedDeadline.title,
+                  category: typedDeadline.category,
+                  category_key: typedDeadline.category_key,
+                  custom_category_label: typedDeadline.custom_category_label,
+                  notification_days: typedDeadline.notification_days,
+                  recurrence_rule: typedDeadline.recurrence_rule,
+                  importance_level: typedDeadline.importance_level,
+                  treatment_note: typedDeadline.treatment_note,
+                  useful_link_url: typedDeadline.useful_link_url,
+                  useful_link_label: typedDeadline.useful_link_label,
+                }}
+                checklistItems={checklistItems.map((item) => ({ title: item.title }))}
+              />
+            ) : null}
             {canDeleteCurrentDeadline || canEditCurrentDeadline ? (
               <>
                 {canEditCurrentDeadline ? (

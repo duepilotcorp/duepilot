@@ -7,7 +7,7 @@ import CollapsibleFormSection from "@/components/CollapsibleFormSection";
 import DateField from "@/components/DateField";
 import DeadlineDocumentField from "@/components/DeadlineDocumentField";
 import DeadlineCategoryField from "@/components/DeadlineCategoryField";
-import DeadlineTemplatePicker from "@/components/DeadlineTemplatePicker";
+import DeadlineTemplateLibraryPicker from "@/components/DeadlineTemplateLibraryPicker";
 import DeadlineImportanceSelector from "@/components/DeadlineImportanceSelector";
 import DeadlineTreatmentOptions from "@/components/DeadlineTreatmentOptions";
 import RecurrenceSelector from "@/components/RecurrenceSelector";
@@ -26,13 +26,11 @@ import {
 } from "@/lib/deadline-treatment";
 import { canManageTeamDeadlines, type DeadlineVisibility } from "@/lib/deadline-access";
 import { saveDeadlineDocuments } from "@/lib/deadline-document-actions";
-import type { DeadlineTemplate } from "@/lib/deadline-templates";
-import { RECURRENCE_SHORT_LABELS, type RecurrenceRule } from "@/lib/recurrence";
+import { RECURRENCE_SHORT_LABELS, normalizeRecurrenceRule, type RecurrenceRule } from "@/lib/recurrence";
 import {
   DEFAULT_DEADLINE_CATEGORY_KEY,
   buildStoredDeadlineCategory,
   getDeadlineCategoryDisplay,
-  inferDeadlineCategoryKey,
   normalizeCustomCategoryLabel,
   normalizeDeadlineCategoryKey,
   type DeadlineCategoryKey,
@@ -40,8 +38,10 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import {
   DEADLINE_IMPORTANCE_LABELS,
+  normalizeDeadlineImportance,
   type DeadlineImportanceLevel,
 } from "@/lib/deadline-importance";
+import type { DeadlineTemplateLibraryItem } from "@/lib/deadline-template-library";
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 
@@ -149,6 +149,7 @@ function getReminderPreview(days: number[]) {
 export default function NewDeadlinePage() {
   const router = useRouter();
   const supabase = createClient();
+  const [initialTemplateId, setInitialTemplateId] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
   const [categoryKey, setCategoryKey] = useState<DeadlineCategoryKey>(DEFAULT_DEADLINE_CATEGORY_KEY);
@@ -202,6 +203,11 @@ export default function NewDeadlinePage() {
 
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setInitialTemplateId(params.get("template"));
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
 
     async function loadMembership() {
@@ -231,15 +237,28 @@ export default function NewDeadlinePage() {
     };
   }, []);
 
-  const handleTemplateSelect = (template: DeadlineTemplate) => {
+  const handleTemplateSelect = (template: DeadlineTemplateLibraryItem) => {
     if (isLoading) return;
 
+    const normalizedChecklistItems = template.checklist_items.map((item) => ({
+      title: item.title,
+    }));
+
     setTitle(template.title);
-    setCategoryKey(inferDeadlineCategoryKey(template.category, template.title));
-    setCustomCategoryLabel("");
-    setNotificationDays(template.recommendedNotificationDays);
-    setSelectedTemplateId(template.id);
-    setAppliedTemplateName(template.title);
+    setCategoryKey(normalizeDeadlineCategoryKey(template.category_key));
+    setCustomCategoryLabel(normalizeCustomCategoryLabel(template.custom_category_label));
+    setNotificationDays(template.notification_days);
+    setRecurrenceRule(normalizeRecurrenceRule(template.recurrence_rule));
+    setImportanceLevel(normalizeDeadlineImportance(template.importance_level));
+    setEnableChecklist(normalizedChecklistItems.length > 0);
+    setChecklistItems(normalizedChecklistItems.length > 0 ? normalizedChecklistItems : [{ title: "" }]);
+    setEnableNote(Boolean(template.treatment_note));
+    setTreatmentNote(template.treatment_note ?? "");
+    setEnableUsefulLink(Boolean(template.useful_link_url));
+    setUsefulLinkLabel(template.useful_link_label ?? "");
+    setUsefulLinkUrl(template.useful_link_url ?? "");
+    setSelectedTemplateId(String(template.id));
+    setAppliedTemplateName(template.name);
     setErrorMessage("");
   };
 
@@ -692,12 +711,13 @@ export default function NewDeadlinePage() {
             </CollapsibleFormSection>
 
             <CollapsibleFormSection
-              title="Modèles d’échéances"
-              description="Utilisez un modèle métier si vous souhaitez préremplir rapidement une échéance."
+              title="Bibliothèque d’échéances"
+              description="Utilisez un modèle sauvegardé dans votre bibliothèque personnelle ou d’équipe."
               badge="Optionnel"
             >
-              <DeadlineTemplatePicker
+              <DeadlineTemplateLibraryPicker
                 selectedTemplateId={selectedTemplateId}
+                initialTemplateId={initialTemplateId}
                 onSelectTemplate={handleTemplateSelect}
                 disabled={isLoading}
               />
