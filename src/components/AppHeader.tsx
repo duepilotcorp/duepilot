@@ -9,7 +9,7 @@ type AppHeaderProps = {
   organizationName?: string | null;
   organizationRole?: OrganizationMemberRole | null;
   isAdminUser?: boolean;
-  active?: "dashboard" | "deadlines" | "calendar" | "history" | "new" | "account" | "organization" | "admin";
+  active?: "dashboard" | "deadlines" | "calendar" | "audit" | "history" | "new" | "account" | "organization" | "admin";
   exportHref?: string;
 };
 
@@ -130,6 +130,14 @@ export default function AppHeader({
                   }`}
                 >
                   Calendrier conformité
+                </Link>
+                <Link
+                  href="/deadlines/audit"
+                  className={`rounded-2xl px-3 py-2.5 text-sm font-semibold transition hover:bg-white/[0.05] hover:text-white ${
+                    active === "audit" ? "bg-white/[0.06] text-white" : "text-slate-200"
+                  }`}
+                >
+                  Dossier conformité
                 </Link>
                 <Link
                   href="/deadlines/history"

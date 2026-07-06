@@ -136,3 +136,25 @@ body {
     color: #0f172a !important;
   }
 }
+
+@media print {
+  .audit-print-hidden {
+    display: none !important;
+  }
+
+  .audit-print-root {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  .audit-print-root section,
+  .audit-print-root div,
+  .audit-print-root a,
+  .audit-print-root span,
+  .audit-print-root p,
+  .audit-print-root h1,
+  .audit-print-root h2,
+  .audit-print-root h3 {
+    box-shadow: none !important;
+  }
+}
