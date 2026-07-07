@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AccountEmailPreferencesForm from "@/components/AccountEmailPreferencesForm";
 import AccountSecurityAssurancePanel from "@/components/AccountSecurityAssurancePanel";
+import AccountUserManualPanel from "@/components/AccountUserManualPanel";
 import AccountPasswordForm from "@/components/AccountPasswordForm";
 import AccountProfileForm from "@/components/AccountProfileForm";
 import AppHeader from "@/components/AppHeader";
@@ -231,6 +232,10 @@ export default async function AccountSettingsPage() {
             </div>
           </aside>
         </section>
+
+        <div className="mt-6 pb-4">
+          <AccountUserManualPanel />
+        </div>
       </div>
     </main>
   );

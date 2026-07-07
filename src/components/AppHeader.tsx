@@ -118,6 +118,12 @@ export default function AppHeader({
                   Mon compte
                 </Link>
                 <Link
+                  href="/settings/account#manuel-utilisateur"
+                  className="rounded-2xl px-3 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.05] hover:text-white"
+                >
+                  Aide et tutoriel
+                </Link>
+                <Link
                   href="/settings/organization"
                   className="rounded-2xl px-3 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.05] hover:text-white"
                 >
