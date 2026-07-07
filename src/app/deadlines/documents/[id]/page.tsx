@@ -6,7 +6,7 @@ import {
   isDeadlineDocumentImage,
   isDeadlineDocumentPdf,
 } from "@/lib/deadline-documents";
-import { getDeadlineDocumentById } from "@/lib/deadline-documents-server";
+import { getAccessibleDeadlineDocumentById } from "@/lib/deadline-security";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -38,15 +38,16 @@ export default async function DeadlineDocumentViewerPage({
     redirect("/login");
   }
 
-  const document = await getDeadlineDocumentById({
-    supabase,
+  const documentAccess = await getAccessibleDeadlineDocumentById({
     userId: user.id,
     documentId,
   });
 
-  if (!document) {
+  if (!documentAccess) {
     notFound();
   }
+
+  const { document, access } = documentAccess;
 
   const viewerUrl = `/api/deadline-documents/${document.id}`;
   const viewerEmbedUrl = `${viewerUrl}#toolbar=1&navpanes=0&scrollbar=1`;
@@ -68,12 +69,14 @@ export default async function DeadlineDocumentViewerPage({
           </Link>
 
           <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/deadlines/edit/${document.deadline_id}`}
-              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
-            >
-              Modifier l’échéance
-            </Link>
+            {access.canEdit ? (
+              <Link
+                href={`/deadlines/edit/${document.deadline_id}`}
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-blue-400/40 hover:bg-blue-400/10 hover:text-white"
+              >
+                Modifier l’échéance
+              </Link>
+            ) : null}
             <a
               href={downloadUrl}
               className="rounded-xl border border-blue-400/25 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-100 transition hover:border-blue-300/50 hover:bg-blue-400/15 hover:text-white"
@@ -93,7 +96,7 @@ export default async function DeadlineDocumentViewerPage({
                 {document.file_name}
               </h1>
               <p className="mt-2 text-sm leading-6 text-slate-400">
-                Aperçu sécurisé intégré à DuePilot. Le fichier reste lié à votre espace utilisateur et à son échéance.
+                Aperçu sécurisé intégré à DuePilot. Le fichier est contrôlé côté serveur avant chaque affichage ou téléchargement.
               </p>
             </div>
 
@@ -109,6 +112,12 @@ export default async function DeadlineDocumentViewerPage({
                   Taille :{" "}
                   <span className="font-semibold text-slate-200">
                     {formatFileSize(document.file_size)}
+                  </span>
+                </p>
+                <p>
+                  Accès :{" "}
+                  <span className="font-semibold text-slate-200">
+                    {access.isTeamMember ? "Espace équipe autorisé" : "Espace personnel"}
                   </span>
                 </p>
               </div>

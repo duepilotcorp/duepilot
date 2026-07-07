@@ -1,6 +1,22 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+function applySecurityHeaders(response: NextResponse, isProtectedRoute: boolean) {
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "SAMEORIGIN");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+  );
+
+  if (isProtectedRoute) {
+    response.headers.set("Cache-Control", "private, no-store, max-age=0, must-revalidate");
+  }
+
+  return response;
+}
+
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request,
@@ -51,7 +67,7 @@ export async function proxy(request: NextRequest) {
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("redirectedFrom", pathname);
 
-    return NextResponse.redirect(redirectUrl);
+    return applySecurityHeaders(NextResponse.redirect(redirectUrl), true);
   }
 
   if (user && isAdminPage) {
@@ -67,7 +83,7 @@ export async function proxy(request: NextRequest) {
       redirectUrl.pathname = "/dashboard";
       redirectUrl.search = "";
 
-      return NextResponse.redirect(redirectUrl);
+      return applySecurityHeaders(NextResponse.redirect(redirectUrl), true);
     }
   }
 
@@ -76,10 +92,10 @@ export async function proxy(request: NextRequest) {
     redirectUrl.pathname = "/dashboard";
     redirectUrl.search = "";
 
-    return NextResponse.redirect(redirectUrl);
+    return applySecurityHeaders(NextResponse.redirect(redirectUrl), false);
   }
 
-  return response;
+  return applySecurityHeaders(response, isProtectedPage);
 }
 
 export const config = {

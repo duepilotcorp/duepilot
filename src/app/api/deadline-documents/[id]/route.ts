@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DEADLINE_DOCUMENTS_BUCKET } from "@/lib/deadline-documents";
+import { getAccessibleDeadlineDocumentById } from "@/lib/deadline-security";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 type DeadlineDocumentRouteProps = {
   params: Promise<{
     id: string;
   }>;
-};
-
-type DeadlineDocumentRow = {
-  id: number;
-  user_id: string;
-  file_name: string;
-  file_path: string;
-  mime_type: string | null;
 };
 
 function encodeContentDispositionFileName(fileName: string) {
@@ -52,29 +47,20 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: document, error: documentError } = await supabase
-    .from("deadline_documents")
-    .select("id, user_id, file_name, file_path, mime_type")
-    .eq("id", documentId)
-    .maybeSingle();
+  const documentAccess = await getAccessibleDeadlineDocumentById({
+    documentId,
+    userId: user.id,
+  });
 
-  if (documentError) {
-    console.error(documentError);
-    return NextResponse.json(
-      { error: "Unable to load document" },
-      { status: 500 }
-    );
-  }
-
-  if (!document) {
+  if (!documentAccess) {
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
   }
 
-  const deadlineDocument = document as DeadlineDocumentRow;
+  const { document } = documentAccess;
 
-  const { data: fileData, error: fileError } = await supabase.storage
+  const { data: fileData, error: fileError } = await supabaseAdmin.storage
     .from(DEADLINE_DOCUMENTS_BUCKET)
-    .download(deadlineDocument.file_path);
+    .download(document.file_path);
 
   if (fileError || !fileData) {
     console.error(fileError);
@@ -85,16 +71,19 @@ export async function GET(
   }
 
   const shouldDownload = request.nextUrl.searchParams.get("download") === "1";
-  const fileName = deadlineDocument.file_name || "document";
+  const fileName = document.file_name || "document";
   const arrayBuffer = await fileData.arrayBuffer();
 
-  const contentType = deadlineDocument.mime_type || fileData.type || "application/octet-stream";
+  const contentType = document.mime_type || fileData.type || "application/octet-stream";
 
   const headers: Record<string, string> = {
     "Content-Type": contentType,
     "Content-Length": String(fileData.size),
     "Accept-Ranges": "bytes",
-    "Cache-Control": "private, max-age=0, must-revalidate",
+    "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
   };
 
   if (shouldDownload) {

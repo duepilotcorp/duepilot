@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import AccountEmailPreferencesForm from "@/components/AccountEmailPreferencesForm";
+import AccountSecurityAssurancePanel from "@/components/AccountSecurityAssurancePanel";
 import AccountPasswordForm from "@/components/AccountPasswordForm";
 import AccountProfileForm from "@/components/AccountProfileForm";
 import AppHeader from "@/components/AppHeader";
@@ -143,6 +144,10 @@ export default async function AccountSettingsPage() {
             </div>
           </div>
         </section>
+
+        <div className="mt-6">
+          <AccountSecurityAssurancePanel />
+        </div>
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.78fr]">
           <div className="space-y-6">

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DeadlineDocument } from "@/lib/deadline-documents";
+import { getAccessibleDeadlineDocumentById } from "@/lib/deadline-security";
 
 const DOCUMENT_SELECT_FIELDS =
   "id, created_at, deadline_id, user_id, file_name, file_path, file_size, mime_type";
@@ -125,16 +126,12 @@ export async function getDeadlineDocumentById({
   userId: string;
   documentId: number;
 }) {
-  const { data, error } = await supabase
-    .from("deadline_documents")
-    .select(DOCUMENT_SELECT_FIELDS)
-    .eq("id", documentId)
-    .maybeSingle();
+  void supabase;
 
-  if (error) {
-    console.error(error);
-    return null;
-  }
+  const documentAccess = await getAccessibleDeadlineDocumentById({
+    userId,
+    documentId,
+  });
 
-  return (data as DeadlineDocument | null) ?? null;
+  return documentAccess?.document ?? null;
 }
