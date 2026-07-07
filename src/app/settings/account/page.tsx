@@ -60,10 +60,18 @@ export default async function AccountSettingsPage() {
   const email = user.email ?? "Email indisponible";
   const emailConfirmed = Boolean(user.email_confirmed_at);
 
-  const userOrganization = await ensureUserOrganization({
-    userId: user.id,
-    email: user.email,
-  });
+  const [userOrganization, isAdminUser, emailPreferencesResult] = await Promise.all([
+    ensureUserOrganization({
+      userId: user.id,
+      email: user.email,
+    }),
+    isUserAdmin(user.id),
+    supabase
+      .from("user_notification_preferences")
+      .select("weekly_summary_enabled")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
 
   const organizationName = userOrganization?.organization.name ?? "Mon entreprise";
   const roleLabel = userOrganization
@@ -72,13 +80,8 @@ export default async function AccountSettingsPage() {
   const canManageOrganization =
     userOrganization?.membership.role === "owner" ||
     userOrganization?.membership.role === "admin";
-  const isAdminUser = await isUserAdmin(user.id);
 
-  const { data: emailPreferences, error: emailPreferencesError } = await supabase
-    .from("user_notification_preferences")
-    .select("weekly_summary_enabled")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const { data: emailPreferences, error: emailPreferencesError } = emailPreferencesResult;
 
   if (emailPreferencesError) {
     console.warn("DuePilot email preferences unavailable.", emailPreferencesError);

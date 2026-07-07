@@ -210,18 +210,24 @@ export default async function DashboardPage() {
     userId: user.id,
     email: user.email,
   });
+  const displayName = getUserDisplayName(user);
 
-  const { data: deadlines, error } = await supabase
-    .from("deadlines")
-    .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
-    .or(
-      buildDeadlineAccessOrFilter({
-        userId: user.id,
-        organizationId: userOrganization?.organization.id,
-      })
-    )
-    .order("due_date", { ascending: true })
-    .returns<Deadline[]>();
+  const [isAdminUser, deadlinesResult] = await Promise.all([
+    isUserAdmin(user.id),
+    supabase
+      .from("deadlines")
+      .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
+      .or(
+        buildDeadlineAccessOrFilter({
+          userId: user.id,
+          organizationId: userOrganization?.organization.id,
+        })
+      )
+      .order("due_date", { ascending: true })
+      .returns<Deadline[]>(),
+  ]);
+
+  const { data: deadlines, error } = deadlinesResult;
 
   if (error) {
     return (
@@ -301,9 +307,6 @@ export default async function DashboardPage() {
   const inProgressCount = activeDeadlines.filter((deadline) => deadline.workflowStatus === "in_progress").length;
   const pendingValidationCount = activeDeadlines.filter((deadline) => deadline.workflowStatus === "completed").length;
   const recurringCount = activeDeadlines.filter((deadline) => deadline.recurrence_rule && deadline.recurrence_rule !== "none").length;
-  const isAdminUser = await isUserAdmin(user.id);
-  const displayName = getUserDisplayName(user);
-
   const urgentDeadlines = activeDeadlines
     .filter((deadline) => deadline.daysUntilDeadline <= 30)
     .slice(0, 5);

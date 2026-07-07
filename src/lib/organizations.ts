@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const ORGANIZATION_MEMBER_ROLES = ["owner", "admin", "member", "viewer"] as const;
@@ -49,7 +50,9 @@ function isOrganizationMemberRole(value: string | null | undefined): value is Or
   return ORGANIZATION_MEMBER_ROLES.includes(value as OrganizationMemberRole);
 }
 
-export async function getUserOrganization(userId: string | null | undefined) {
+export const getUserOrganization = cache(async function getUserOrganization(
+  userId: string | null | undefined
+) {
   if (!userId) return null;
 
   const { data: memberships, error: membershipError } = await supabaseAdmin
@@ -93,22 +96,26 @@ export async function getUserOrganization(userId: string | null | undefined) {
       status: membership.status,
     } as OrganizationMembership,
   } satisfies UserOrganization;
-}
+});
 
 export async function ensureUserOrganization({
   userId,
   email,
+  backfillExistingDeadlines = false,
 }: {
   userId: string;
   email?: string | null;
+  backfillExistingDeadlines?: boolean;
 }) {
   const existingOrganization = await getUserOrganization(userId);
 
   if (existingOrganization) {
-    await backfillUserDeadlinesOrganization({
-      userId,
-      organizationId: existingOrganization.organization.id,
-    });
+    if (backfillExistingDeadlines) {
+      await backfillUserDeadlinesOrganization({
+        userId,
+        organizationId: existingOrganization.organization.id,
+      });
+    }
 
     return existingOrganization;
   }

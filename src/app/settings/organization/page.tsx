@@ -318,18 +318,19 @@ export default async function OrganizationSettingsPage({
 
   const { organization, membership } = userOrganization;
   const canManageOrganization = canManageOrganizationTeam(membership.role);
-  const members = await getOrganizationMembers(organization.id);
-  const invitations = canManageOrganization
-    ? await getOrganizationInvitations(organization.id)
-    : [];
+  const displayName = getUserDisplayName(user);
+
+  const [members, invitations, isAdminUser] = await Promise.all([
+    getOrganizationMembers(organization.id),
+    canManageOrganization ? getOrganizationInvitations(organization.id) : Promise.resolve([]),
+    isUserAdmin(user.id),
+  ]);
   const pendingInvitations = invitations.filter(
     (invitation) => invitation.status === "pending"
   );
   const pastInvitations = invitations.filter(
     (invitation) => invitation.status !== "pending"
   ).slice(0, 6);
-  const displayName = getUserDisplayName(user);
-  const isAdminUser = await isUserAdmin(user.id);
 
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 text-white">

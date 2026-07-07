@@ -410,24 +410,28 @@ export default async function ComplianceCalendarPage({
     userId: user.id,
     email: user.email,
   });
-  const isAdminUser = await isUserAdmin(user.id);
   const displayName = getUserDisplayName(user);
   const yearStart = `${selectedYear}-01-01`;
   const yearEnd = `${selectedYear}-12-31`;
 
-  const { data: deadlines, error } = await supabase
-    .from("deadlines")
-    .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
-    .or(
-      buildDeadlineAccessOrFilter({
-        userId: user.id,
-        organizationId: userOrganization?.organization.id,
-      })
-    )
-    .gte("due_date", yearStart)
-    .lte("due_date", yearEnd)
-    .order("due_date", { ascending: true })
-    .returns<Deadline[]>();
+  const [isAdminUser, deadlinesResult] = await Promise.all([
+    isUserAdmin(user.id),
+    supabase
+      .from("deadlines")
+      .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
+      .or(
+        buildDeadlineAccessOrFilter({
+          userId: user.id,
+          organizationId: userOrganization?.organization.id,
+        })
+      )
+      .gte("due_date", yearStart)
+      .lte("due_date", yearEnd)
+      .order("due_date", { ascending: true })
+      .returns<Deadline[]>(),
+  ]);
+
+  const { data: deadlines, error } = deadlinesResult;
 
   if (error) {
     return (

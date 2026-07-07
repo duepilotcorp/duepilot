@@ -25,20 +25,24 @@ export default async function DeadlineLibraryPage() {
     redirect("/login");
   }
 
-  const userOrganization = await ensureUserOrganization({
-    userId: user.id,
-    email: user.email,
-  });
   const displayName = getUserDisplayName(user);
-  const isAdminUser = await isUserAdmin(user.id);
 
-  const { data: templates, error: templatesError } = await supabase
-    .from("deadline_templates")
-    .select(
-      "id, organization_id, created_by, visibility, name, title, description, category, category_key, custom_category_label, notification_days, recurrence_rule, importance_level, treatment_note, useful_link_url, useful_link_label, checklist_items, created_at, updated_at"
-    )
-    .order("updated_at", { ascending: false })
-    .order("created_at", { ascending: false });
+  const [userOrganization, isAdminUser, templatesResult] = await Promise.all([
+    ensureUserOrganization({
+      userId: user.id,
+      email: user.email,
+    }),
+    isUserAdmin(user.id),
+    supabase
+      .from("deadline_templates")
+      .select(
+        "id, organization_id, created_by, visibility, name, title, description, category, category_key, custom_category_label, notification_days, recurrence_rule, importance_level, treatment_note, useful_link_url, useful_link_label, checklist_items, created_at, updated_at"
+      )
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false }),
+  ]);
+
+  const { data: templates, error: templatesError } = templatesResult;
 
   if (templatesError) {
     console.error(templatesError);

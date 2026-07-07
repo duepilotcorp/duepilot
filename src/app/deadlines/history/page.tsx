@@ -250,21 +250,25 @@ export default async function DeadlineHistoryPage({
     userId: user.id,
     email: user.email,
   });
-  const isAdminUser = await isUserAdmin(user.id);
   const displayName = getUserDisplayName(user);
 
-  const { data: deadlines, error } = await supabase
-    .from("deadlines")
-    .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
-    .or(
-      buildDeadlineAccessOrFilter({
-        userId: user.id,
-        organizationId: userOrganization?.organization.id,
-      })
-    )
-    .eq("workflow_status", "archived")
+  const [isAdminUser, deadlinesResult] = await Promise.all([
+    isUserAdmin(user.id),
+    supabase
+      .from("deadlines")
+      .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
+      .or(
+        buildDeadlineAccessOrFilter({
+          userId: user.id,
+          organizationId: userOrganization?.organization.id,
+        })
+      )
+      .eq("workflow_status", "archived")
     .order("due_date", { ascending: false })
-    .returns<Deadline[]>();
+      .returns<Deadline[]>(),
+  ]);
+
+  const { data: deadlines, error } = deadlinesResult;
 
   if (error) {
     return (

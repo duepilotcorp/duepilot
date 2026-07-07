@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const USER_ROLES = ["admin", "owner", "member", "viewer"] as const;
@@ -15,7 +16,9 @@ export function isUserRole(value: string | null | undefined): value is UserRole 
   return USER_ROLES.includes(value as UserRole);
 }
 
-export async function getUserRole(userId: string | null | undefined) {
+export const getUserRole = cache(async function getUserRole(
+  userId: string | null | undefined
+) {
   if (!userId) {
     return null;
   }
@@ -36,7 +39,7 @@ export async function getUserRole(userId: string | null | undefined) {
   }
 
   return data.role;
-}
+});
 
 export async function isUserAdmin(userId: string | null | undefined) {
   const role = await getUserRole(userId);

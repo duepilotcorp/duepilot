@@ -22,6 +22,22 @@ export async function proxy(request: NextRequest) {
     request,
   });
 
+  const { pathname } = request.nextUrl;
+
+  const isAuthPage = pathname === "/login" || pathname === "/register";
+  const isAdminPage = pathname.startsWith("/admin");
+  const isProtectedPage =
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/deadlines") ||
+    pathname.startsWith("/settings") ||
+    pathname.startsWith("/team/invitations") ||
+    isAdminPage;
+  const needsSessionCheck = isProtectedPage || isAuthPage;
+
+  if (!needsSessionCheck) {
+    return applySecurityHeaders(response, false);
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
@@ -50,17 +66,6 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
-
-  const isAuthPage = pathname === "/login" || pathname === "/register";
-  const isAdminPage = pathname.startsWith("/admin");
-  const isProtectedPage =
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/deadlines") ||
-    pathname.startsWith("/settings") ||
-    pathname.startsWith("/team/invitations") ||
-    isAdminPage;
 
   if (!user && isProtectedPage) {
     const redirectUrl = request.nextUrl.clone();
