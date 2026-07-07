@@ -427,28 +427,36 @@ export default async function DeadlinesPage({
     redirect("/login");
   }
 
-  const userOrganization = await ensureUserOrganization({
+  const displayName = getUserDisplayName(user);
+  const userOrganizationPromise = ensureUserOrganization({
     userId: user.id,
     email: user.email,
   });
+  const isAdminUserPromise = isUserAdmin(user.id);
+
+  const userOrganization = await userOrganizationPromise;
   const canManageTeam =
     userOrganization?.membership.role === "owner" ||
     userOrganization?.membership.role === "admin";
-  const displayName = getUserDisplayName(user);
+  const deadlineAccessFilter = buildDeadlineAccessOrFilter({
+    userId: user.id,
+    organizationId: userOrganization?.organization.id,
+  });
 
-  const [isAdminUser, deadlinesResult] = await Promise.all([
-    isUserAdmin(user.id),
+  const [isAdminUser, deadlinesResult, archivedCountResult] = await Promise.all([
+    isAdminUserPromise,
     supabase
       .from("deadlines")
       .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, completed_by")
-      .or(
-        buildDeadlineAccessOrFilter({
-          userId: user.id,
-          organizationId: userOrganization?.organization.id,
-        })
-      )
+      .or(deadlineAccessFilter)
+      .neq("workflow_status", "archived")
       .order("due_date", { ascending: true })
       .returns<Deadline[]>(),
+    supabase
+      .from("deadlines")
+      .select("id", { count: "exact", head: true })
+      .or(deadlineAccessFilter)
+      .eq("workflow_status", "archived"),
   ]);
 
   const { data: deadlines, error } = deadlinesResult;
@@ -511,12 +519,7 @@ export default async function DeadlinesPage({
     };
   });
 
-  const activeDeadlines = enrichedDeadlines.filter(
-    (deadline) => deadline.workflowStatus !== "archived"
-  );
-  const archivedDeadlines = enrichedDeadlines.filter(
-    (deadline) => deadline.workflowStatus === "archived"
-  );
+  const activeDeadlines = enrichedDeadlines;
   const total = activeDeadlines.length;
   const lateCount = activeDeadlines.filter(
     (deadline) => deadline.daysUntilDeadline < 0
@@ -602,7 +605,7 @@ export default async function DeadlinesPage({
   const personalCount = activeDeadlines.filter((deadline) => deadline.visibility === "personal").length;
   const inProgressCount = activeDeadlines.filter((deadline) => deadline.workflowStatus === "in_progress").length;
   const completedCount = activeDeadlines.filter((deadline) => deadline.workflowStatus === "completed").length;
-  const archivedCount = archivedDeadlines.length;
+  const archivedCount = archivedCountResult.count ?? 0;
   const filteredCount = filteredDeadlines.length;
   const activeFilters = buildFilterSummary({
     searchQuery,

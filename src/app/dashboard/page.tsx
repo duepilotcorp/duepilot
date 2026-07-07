@@ -206,25 +206,33 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const userOrganization = await ensureUserOrganization({
+  const displayName = getUserDisplayName(user);
+  const userOrganizationPromise = ensureUserOrganization({
     userId: user.id,
     email: user.email,
   });
-  const displayName = getUserDisplayName(user);
+  const isAdminUserPromise = isUserAdmin(user.id);
 
-  const [isAdminUser, deadlinesResult] = await Promise.all([
-    isUserAdmin(user.id),
+  const userOrganization = await userOrganizationPromise;
+  const deadlineAccessFilter = buildDeadlineAccessOrFilter({
+    userId: user.id,
+    organizationId: userOrganization?.organization.id,
+  });
+
+  const [isAdminUser, deadlinesResult, archivedCountResult] = await Promise.all([
+    isAdminUserPromise,
     supabase
       .from("deadlines")
       .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")
-      .or(
-        buildDeadlineAccessOrFilter({
-          userId: user.id,
-          organizationId: userOrganization?.organization.id,
-        })
-      )
+      .or(deadlineAccessFilter)
+      .neq("workflow_status", "archived")
       .order("due_date", { ascending: true })
       .returns<Deadline[]>(),
+    supabase
+      .from("deadlines")
+      .select("id", { count: "exact", head: true })
+      .or(deadlineAccessFilter)
+      .eq("workflow_status", "archived"),
   ]);
 
   const { data: deadlines, error } = deadlinesResult;
@@ -279,10 +287,8 @@ export default async function DashboardPage() {
     };
   });
 
-  const activeDeadlines = enrichedDeadlines.filter(
-    (deadline) => deadline.workflowStatus !== "archived"
-  );
-  const archivedCount = enrichedDeadlines.length - activeDeadlines.length;
+  const activeDeadlines = enrichedDeadlines;
+  const archivedCount = archivedCountResult.count ?? 0;
   const total = activeDeadlines.length;
   const lateCount = activeDeadlines.filter(
     (deadline) => deadline.daysUntilDeadline < 0

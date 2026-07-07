@@ -15,6 +15,8 @@ const geistMono = Geist_Mono({
 
 const siteUrl = "https://www.duepilot.fr";
 
+export const preferredRegion = ["cdg1", "fra1"];
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {

@@ -406,16 +406,19 @@ export default async function ComplianceCalendarPage({
     redirect("/login");
   }
 
-  const userOrganization = await ensureUserOrganization({
+  const displayName = getUserDisplayName(user);
+  const userOrganizationPromise = ensureUserOrganization({
     userId: user.id,
     email: user.email,
   });
-  const displayName = getUserDisplayName(user);
+  const isAdminUserPromise = isUserAdmin(user.id);
+
+  const userOrganization = await userOrganizationPromise;
   const yearStart = `${selectedYear}-01-01`;
   const yearEnd = `${selectedYear}-12-31`;
 
   const [isAdminUser, deadlinesResult] = await Promise.all([
-    isUserAdmin(user.id),
+    isAdminUserPromise,
     supabase
       .from("deadlines")
       .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status")

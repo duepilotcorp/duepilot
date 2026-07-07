@@ -228,25 +228,50 @@ export default async function DeadlineAuditPage({
     redirect("/login");
   }
 
-  const userOrganization = await ensureUserOrganization({
+  const displayName = getUserDisplayName(user);
+  const userOrganizationPromise = ensureUserOrganization({
     userId: user.id,
     email: user.email,
   });
-  const displayName = getUserDisplayName(user);
+  const isAdminUserPromise = isUserAdmin(user.id);
+
+  const userOrganization = await userOrganizationPromise;
+
+  let deadlinesQuery = supabase
+    .from("deadlines")
+    .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, completed_by")
+    .or(
+      buildDeadlineAccessOrFilter({
+        userId: user.id,
+        organizationId: userOrganization?.organization.id,
+      })
+    );
+
+  if (filters.registry === "active") {
+    deadlinesQuery = deadlinesQuery.neq("workflow_status", "archived");
+  } else if (filters.registry === "archived") {
+    deadlinesQuery = deadlinesQuery.eq("workflow_status", "archived");
+  }
+
+  if (filters.scope !== "all") {
+    deadlinesQuery = deadlinesQuery.eq("visibility", filters.scope);
+  }
+
+  if (filters.year) {
+    deadlinesQuery = deadlinesQuery.gte("due_date", `${filters.year}-01-01`).lte("due_date", `${filters.year}-12-31`);
+  }
+
+  if (filters.dateFrom) {
+    deadlinesQuery = deadlinesQuery.gte("due_date", filters.dateFrom);
+  }
+
+  if (filters.dateTo) {
+    deadlinesQuery = deadlinesQuery.lte("due_date", filters.dateTo);
+  }
 
   const [isAdminUser, deadlinesResult] = await Promise.all([
-    isUserAdmin(user.id),
-    supabase
-      .from("deadlines")
-      .select("id, title, category, category_key, custom_category_label, due_date, recurrence_rule, importance_level, created_at, user_id, organization_id, visibility, workflow_status, claimed_by, completed_by")
-      .or(
-        buildDeadlineAccessOrFilter({
-          userId: user.id,
-          organizationId: userOrganization?.organization.id,
-        })
-      )
-      .order("due_date", { ascending: true })
-      .returns<Deadline[]>(),
+    isAdminUserPromise,
+    deadlinesQuery.order("due_date", { ascending: true }).returns<Deadline[]>(),
   ]);
 
   const { data: deadlines, error } = deadlinesResult;
