@@ -61,7 +61,7 @@ export async function getUserOrganization(userId: string | null | undefined) {
     .limit(1);
 
   if (membershipError) {
-    console.error(membershipError);
+    console.warn("DuePilot organization lookup skipped.", membershipError);
     return null;
   }
 
@@ -78,7 +78,7 @@ export async function getUserOrganization(userId: string | null | undefined) {
     .maybeSingle();
 
   if (organizationError) {
-    console.error(organizationError);
+    console.warn("DuePilot organization details unavailable.", organizationError);
     return null;
   }
 
@@ -173,7 +173,7 @@ export async function backfillUserDeadlinesOrganization({
     .is("organization_id", null);
 
   if (error) {
-    console.error(error);
+    console.warn("DuePilot organization backfill skipped.", error);
   }
 }
 

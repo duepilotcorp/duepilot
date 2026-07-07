@@ -24,7 +24,7 @@ async function getExactCount(table: string, buildQuery?: (query: any) => any) {
   const { count, error } = await query;
 
   if (error) {
-    console.error(error);
+    console.warn(`DuePilot admin count unavailable for ${table}.`, error);
     return 0;
   }
 
@@ -98,11 +98,11 @@ export default async function AdminPage() {
   ]);
 
   if (recentBetaRequestsResult.error) {
-    console.error(recentBetaRequestsResult.error);
+    console.warn("DuePilot recent beta requests unavailable.", recentBetaRequestsResult.error);
   }
 
   if (recentWeeklyLogsResult.error) {
-    console.error(recentWeeklyLogsResult.error);
+    console.warn("DuePilot recent weekly summary logs unavailable.", recentWeeklyLogsResult.error);
   }
 
   const betaCounts: Record<BetaAccessStatus, number> = {

@@ -100,9 +100,9 @@ export async function saveDeadlineDocument({
     return {
       errorMessage:
         documentError.code === "23505"
-          ? "La base DuePilot limite encore cette échéance à un seul document. Exécutez le correctif Supabase multi-documents puis réessayez."
+          ? "Cette échéance ne peut pas encore recevoir plusieurs documents. Réessayez plus tard ou contactez l’administrateur."
           : documentError.code === "23514"
-            ? "Ce format de document n’est pas encore autorisé par la base DuePilot. Exécutez le correctif Supabase puis réessayez."
+            ? "Ce format de document n’est pas encore autorisé. Utilisez un fichier PDF, PNG, JPG, JPEG ou WEBP."
             : "Le document a été envoyé, mais DuePilot n’a pas pu l’associer à l’échéance. Réessayez dans quelques instants.",
     };
   }

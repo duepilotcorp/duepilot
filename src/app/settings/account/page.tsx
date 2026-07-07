@@ -81,7 +81,7 @@ export default async function AccountSettingsPage() {
     .maybeSingle();
 
   if (emailPreferencesError) {
-    console.error(emailPreferencesError);
+    console.warn("DuePilot email preferences unavailable.", emailPreferencesError);
   }
 
   const weeklySummaryEnabled = Boolean(

@@ -96,7 +96,7 @@ export default async function DeadlineDocumentViewerPage({
                 {document.file_name}
               </h1>
               <p className="mt-2 text-sm leading-6 text-slate-400">
-                Aperçu sécurisé intégré à DuePilot. Le fichier est contrôlé côté serveur avant chaque affichage ou téléchargement.
+                Aperçu sécurisé intégré à DuePilot. L’accès à ce fichier est vérifié avant chaque affichage ou téléchargement.
               </p>
             </div>
 

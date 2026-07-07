@@ -3,22 +3,22 @@ export default function AccountSecurityAssurancePanel() {
     {
       title: "Documents privés",
       description:
-        "Les documents sont servis par une route contrôlée côté serveur : chaque affichage et téléchargement vérifie la session et les droits sur l’échéance.",
+        "Chaque document reste privé : l’accès est vérifié avant chaque affichage et chaque téléchargement.",
     },
     {
       title: "Isolation par compte et entreprise",
       description:
-        "Les échéances personnelles restent liées à leur créateur. Les échéances équipe restent limitées aux membres actifs de l’organisation.",
+        "Vos échéances personnelles restent visibles uniquement par vous. Les échéances d’équipe restent réservées aux membres autorisés.",
     },
     {
       title: "Rôles verrouillés",
       description:
-        "Les actions sensibles restent réservées aux bons profils : owner, admin, membre assigné ou lecteur selon le contexte.",
+        "Les actions importantes sont limitées selon le rôle de chacun : propriétaire, administrateur, membre ou lecteur.",
     },
     {
       title: "Défense en profondeur",
       description:
-        "Les protections sont appliquées dans l’interface, côté serveur et au niveau Supabase avec des règles RLS dédiées.",
+        "Les contrôles sont appliqués à plusieurs niveaux pour éviter qu’un utilisateur accède à des informations qui ne lui sont pas destinées.",
     },
   ];
 
@@ -30,21 +30,21 @@ export default function AccountSecurityAssurancePanel() {
             Espace sécurisé
           </div>
           <h2 className="mt-4 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            Vos données restent cloisonnées et contrôlées.
+            Vos données restent privées, organisées et protégées.
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-300">
-            DuePilot applique des contrôles d’accès stricts pour limiter chaque
-            utilisateur à ses propres informations ou à celles de son équipe
-            autorisée. L’objectif : donner un cadre fiable pour centraliser vos
-            échéances et documents sensibles.
+            DuePilot vérifie les accès aux échéances, aux documents et aux espaces
+            d’équipe afin que chacun voie uniquement les informations auxquelles il
+            est autorisé. Vous pouvez centraliser vos documents sensibles dans un
+            espace clair, privé et maîtrisé.
           </p>
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-slate-950/45 p-4 text-sm text-slate-300 lg:w-80">
           <p className="font-semibold text-white">Bonnes pratiques</p>
           <p className="mt-2 leading-6 text-slate-400">
-            Utilisez un mot de passe unique, limitez les rôles admin et retirez
-            rapidement les membres qui ne doivent plus accéder à l’entreprise.
+            Utilisez un mot de passe unique, limitez les accès administrateur et
+            retirez rapidement les membres qui ne doivent plus accéder à votre espace entreprise.
           </p>
         </div>
       </div>

@@ -232,7 +232,7 @@ async function sendTeamInvitationEmail({
   if (!process.env.RESEND_API_KEY) {
     return {
       success: false,
-      message: "RESEND_API_KEY n’est pas configurée.",
+      message: "L’envoi d’invitations est temporairement indisponible. Réessayez plus tard.",
     };
   }
 

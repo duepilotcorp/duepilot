@@ -103,7 +103,6 @@ async function getExactCount(
   const { count, error } = await query;
 
   if (error) {
-    console.error(error);
     return 0;
   }
 
@@ -161,14 +160,8 @@ export default async function AdminCronPage() {
       .returns<NotificationLog[]>(),
   ]);
 
-  if (weeklyLogsResult.error) {
-    console.error(weeklyLogsResult.error);
-  }
-
-  if (notificationLogsResult.error) {
-    console.error(notificationLogsResult.error);
-  }
-
+  const weeklyLogsUnavailable = Boolean(weeklyLogsResult.error);
+  const notificationLogsUnavailable = Boolean(notificationLogsResult.error);
   const weeklyLogs = weeklyLogsResult.data ?? [];
   const notificationLogs = notificationLogsResult.data ?? [];
   const cronSecretConfigured = Boolean(process.env.CRON_SECRET);
@@ -335,6 +328,12 @@ export default async function AdminCronPage() {
               </Link>
             </div>
 
+            {weeklyLogsUnavailable ? (
+              <div className="mt-6 rounded-3xl border border-yellow-400/20 bg-yellow-400/10 p-5 text-sm leading-6 text-yellow-100">
+                Les logs hebdomadaires ne sont pas disponibles pour le moment. La configuration cron reste consultable.
+              </div>
+            ) : null}
+
             <div className="mt-6 space-y-3">
               {weeklyLogs.length > 0 ? (
                 weeklyLogs.map((log) => (
@@ -380,6 +379,12 @@ export default async function AdminCronPage() {
             <p className="mt-2 text-sm leading-6 text-slate-400">
               Aperçu rapide des derniers emails de rappel d’échéance.
             </p>
+
+            {notificationLogsUnavailable ? (
+              <div className="mt-6 rounded-3xl border border-yellow-400/20 bg-yellow-400/10 p-5 text-sm leading-6 text-yellow-100">
+                Les logs de rappels quotidiens ne sont pas disponibles pour le moment.
+              </div>
+            ) : null}
 
             <div className="mt-6 space-y-3">
               {notificationLogs.length > 0 ? (

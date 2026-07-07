@@ -112,9 +112,7 @@ export default async function DeadlineLibraryPage() {
 
         {templatesError ? (
           <div className="mt-6 rounded-3xl border border-red-500/30 bg-red-500/10 p-5 text-sm leading-6 text-red-200">
-            Impossible de charger la bibliothèque. Vérifiez que le SQL de la brique
-            Bibliothèque d’échéances V1 a bien été exécuté dans Supabase avant de
-            remplacer le dossier src.
+            Impossible de charger la bibliothèque pour le moment. Réessayez dans quelques instants ou contactez l’administrateur de votre espace.
           </div>
         ) : null}
 

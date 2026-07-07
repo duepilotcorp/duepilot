@@ -110,7 +110,7 @@ export default function DeadlineTemplateLibraryPicker({
         console.error(error);
         setTemplates([]);
         setErrorMessage(
-          "Impossible de charger votre bibliothèque. Vérifiez que la migration SQL a bien été exécutée."
+          "Impossible de charger votre bibliothèque pour le moment. Réessayez dans quelques instants."
         );
         setIsLoadingTemplates(false);
         return;

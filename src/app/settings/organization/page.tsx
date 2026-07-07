@@ -309,7 +309,7 @@ export default async function OrganizationSettingsPage({
       <main className="min-h-screen bg-slate-950 p-6 text-white sm:p-8">
         <div className="mx-auto max-w-5xl">
           <p className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-200">
-            Impossible de charger l’organisation pour le moment. Vérifiez que les migrations Supabase des organisations ont bien été exécutées.
+            Impossible de charger l’organisation pour le moment. Réessayez dans quelques instants ou contactez l’administrateur de votre espace.
           </p>
         </div>
       </main>
